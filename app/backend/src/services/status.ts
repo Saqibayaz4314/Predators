@@ -54,19 +54,32 @@ export async function getDatabaseReadiness(
 }
 
 /**
- * Synchronous status snapshot for the /api/v1/status response.
- * Does NOT probe the database — use getFullReadinessState() for /ready.
+ * Status snapshot for the /api/v1/status response.
+ *
+ * By default this returns the foundation-era stub (no probing). Pass
+ * overrides to report real dependency state; the route computes those from
+ * the same probes used by /ready. `ready` is true only when database,
+ * dataset and graph are all available.
  */
-export function getServiceStatus(env: Env): ServiceStatus {
+export function getServiceStatus(
+  env: Env,
+  overrides?: { database?: DbReadinessStatus; dataset?: string; graph?: string },
+): ServiceStatus {
+  const database = overrides?.database ?? (getDatabaseConfig(env) ? 'not_initialized' : 'not_configured');
+  const dataset = overrides?.dataset === 'ready' ? 'ready' : 'not_initialized';
+  const graph = overrides?.graph === 'ready' ? 'ready' : 'not_initialized';
+
+  const ready = database === 'connected' && dataset === 'ready' && graph === 'ready';
+
   return {
     service: 'flood-digital-twin',
-    phase: 'foundation',
-    ready: false,
+    phase: ready ? 'operational' : 'foundation',
+    ready,
     checks: {
       backend: 'initialized',
-      database: getDatabaseConfig(env) ? 'not_initialized' : 'not_configured',
-      dataset: 'not_initialized',
-      graph: 'not_initialized',
+      database,
+      dataset,
+      graph,
     },
   };
 }

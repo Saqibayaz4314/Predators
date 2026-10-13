@@ -14,7 +14,7 @@
 import type { FastifyInstance } from 'fastify';
 import type pg from 'pg';
 import type { Env } from '../config/env.js';
-import { getServiceStatus, getFullReadinessState } from '../services/status.js';
+import { getServiceStatus, getFullReadinessState, getDatabaseReadiness } from '../services/status.js';
 import { getGraphCacheStatus, getOrLoadGraph } from '../routing/graphCache.js';
 import { createDrizzle, getReadyDatasetVersion } from '../db/repositories.js';
 import { STUDY_AREA_ID, DATASET_VERSION } from '../modules/routing/routeService.js';
@@ -70,8 +70,37 @@ export async function registerStatusRoutes(
   });
 
   await app.register(async (api) => {
-    api.get('/status', async (request) => ({
-      success: true, data: getServiceStatus(env), meta: { requestId: request.id },
-    }));
+    // Real dependency snapshot for the frontend: uses the same probes as
+    // /ready (dataset + graph cache + DB health) and self-heals the graph
+    // load. Always 200; readiness is reported inside `data.ready`.
+    api.get('/status', async (request) => {
+      let datasetReady = false;
+      if (pool) {
+        try {
+          const db = createDrizzle(pool);
+          datasetReady = (await getReadyDatasetVersion(db)) !== null;
+        } catch {
+          datasetReady = false; // Probe failures keep status non-ready; never leak details.
+        }
+      }
+
+      const graphReady = getGraphCacheStatus().loaded;
+      if (pool && datasetReady && !graphReady) {
+        void getOrLoadGraph(pool, STUDY_AREA_ID, DATASET_VERSION).catch(() => {
+          // Failure is reflected in the next status snapshot; do not crash on transient DB issues.
+        });
+      }
+
+      const dbCheck = await getDatabaseReadiness(env, pool);
+      return {
+        success: true,
+        data: getServiceStatus(env, {
+          database: dbCheck.database,
+          dataset: datasetReady ? 'ready' : 'not_initialized',
+          graph: graphReady ? 'ready' : 'not_initialized',
+        }),
+        meta: { requestId: request.id },
+      };
+    });
   }, { prefix: '/api/v1' });
 }

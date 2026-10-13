@@ -224,6 +224,30 @@ describe.skipIf(!runIntegration)('database integration (DB-01/DB-02)', () => {
     expect(response.body).not.toContain('password');
   });
 
+  it('DB-01: /api/v1/status reports real dependency state (200 always)', async () => {
+    const env = parseEnv({ NODE_ENV: 'test', DATABASE_URL: databaseUrl });
+    const app = buildApp(env, pool!);
+    const response = await app.inject('/api/v1/status');
+    await app.close();
+    // /status never fails at HTTP level; readiness is inside data.ready.
+    expect(response.statusCode).toBe(200);
+    const body = response.json<{
+      data: { service: string; ready: boolean; checks: Record<string, string> };
+    }>();
+    expect(body.data.service).toBe('flood-digital-twin');
+    expect(['connected', 'error']).toContain(body.data.checks.database);
+    expect(['ready', 'not_initialized']).toContain(body.data.checks.dataset);
+    expect(['ready', 'not_initialized']).toContain(body.data.checks.graph);
+    // ready is true only when all three dependencies are available
+    if (body.data.ready) {
+      expect(body.data.checks.database).toBe('connected');
+      expect(body.data.checks.dataset).toBe('ready');
+      expect(body.data.checks.graph).toBe('ready');
+    }
+    // No credentials in response
+    expect(response.body).not.toContain('password');
+  });
+
   it('DB-02: migration tables are present (if migration has run)', async () => {
     // Check if core tables exist without INSERT/UPDATE/DELETE.
     // This verifies 001_initial_schema.sql was applied.

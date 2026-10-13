@@ -23,14 +23,14 @@ export type ApiError = z.infer<typeof apiErrorSchema>;
 
 export const dependencyChecksSchema = z.object({
   backend: z.literal('initialized'),
-  database: z.enum(['not_configured', 'not_initialized']),
-  dataset: z.literal('not_initialized'),
-  graph: z.literal('not_initialized'),
+  database: z.enum(['not_configured', 'not_initialized', 'connecting', 'connected', 'error']),
+  dataset: z.enum(['not_initialized', 'ready']),
+  graph: z.enum(['not_initialized', 'ready']),
 });
 export const serviceStatusSchema = z.object({
   service: z.literal('flood-digital-twin'),
-  phase: z.literal('foundation'),
-  ready: z.literal(false),
+  phase: z.enum(['foundation', 'operational']),
+  ready: z.boolean(),
   checks: dependencyChecksSchema,
 });
 export const serviceStatusResponseSchema = apiSuccessSchema(serviceStatusSchema);

@@ -92,6 +92,16 @@ The final demo must have:
 
 **Infrastructure adaptation (2026-10-14) — new entries:**
 
+- **CI-ISSUE-003 — RESOLVED (2026-10-14):** Live site showed "Not
+  initialized" / "No dataset loaded" despite a fully ready backend.
+  Root cause: `/api/v1/status` still returned the foundation-era stub
+  (`database/dataset/graph: not_initialized`, `ready: false` hardcoded),
+  and the shared schema was too strict (`phase: literal('foundation')`,
+  `ready: literal(false)`) to ever express readiness. Fix: the endpoint now
+  probes dataset + graph cache + DB health (same logic as /ready) and the
+  shared `serviceStatusSchema` accepts `connected`/`ready`/`operational`.
+  Verified: tsc exit 0; database 18/18, foundation 16/16, frontend api 4/4.
+
 - **CI-ISSUE-002 — RESOLVED (2026-10-14):** Second pipeline run (after the
   jq fix): Terraform apply, ECR builds and image pushes all succeeded; the
   secret step failed with `namespaces "flood-digital-twin" not found` — the
