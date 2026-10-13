@@ -1,0 +1,20 @@
+{
+  "status": "PASSED",
+  "base": "http://127.0.0.1:4174",
+  "results": [
+    {
+      "check": "Desktop map, tiles, all scenarios, metrics, rerouting, unreachable, rapid switching, style restoration and persistence",
+      "status": "PASSED",
+      "vectorTiles": 49
+    },
+    {
+      "check": "390 px mobile layout, touch controls, zoom/pan, real snapping, routes, both themes, error and recovery",
+      "status": "PASSED"
+    },
+    {
+      "check": "Empty dataset state",
+      "status": "PASSED"
+    }
+  ],
+  "errors": []
+}

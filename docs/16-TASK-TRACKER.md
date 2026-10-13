@@ -1,5 +1,12 @@
 # 16 — TASK TRACKER & EXECUTION CONTROL
 
+## Verified application milestone — 2026-10-14
+
+FLOOD-01..08, API-01..10 and UI-01..12 DONE: existing real dataset/scenarios validated without reseeding, secure DB TLS, PostGIS physical-segment deduplication and all-arcs blocking, real routes/snaps, shared schemas, map/impact UI and both themes. Backend 119/119, frontend 33/33, typechecks/builds, real API demo and production-preview Playwright workflow PASSED. QA-01..03/05..08/12 and DOC-05 DONE. DEMO-01 covers the stable flood reroute/unreachable fixtures; full shelter-inclusive demo remains pending.
+
+QA-04 IN_REVIEW: core map workflow passes Playwright; shelter workflow and Cypress-specific deliverable remain open. QA-09 IN_REVIEW: semantic contrast checks, labeled controls, center/coordinate input and touch sizes verified; broad accessibility audit remains open. Deployment milestones remain owned by Developer B and were not verified here. See .ai/HANDOFF.md for exact fixture metrics, commands, endpoints, files and evidence.
+
+
 **Project:** Flood Digital Twin  
 **Challenge:** CL-01 — Flood Risk & Evacuation Planner  
 **Version:** 1.0  
@@ -220,7 +227,7 @@ ROUTE-01..ROUTE-08 verified 2026-10-13:
   - Demo pair routing verified: pair1 ~4499m, pair2 ~3500m
   - Blocked arc invariant confirmed: scenario arcs ≥ baseline distance
   - Git commit: 32d2177
-Next: FLOOD-01 (PostGIS flood intersection) + API-01 (routing endpoint)
+Next (updated 2026-10-14): SHELTER-01; flood, core API and map work now verified.
 
 ---
 
@@ -230,14 +237,14 @@ Next: FLOOD-01 (PostGIS flood intersection) + API-01 (routing endpoint)
 
 | ID | Task | Owner | Priority | Depends on | Status |
 |---|---|---|---|---|---|
-| FLOOD-01 | Create three simulated scenarios | A | P0 | DB-03, GEO-01 | TODO |
-| FLOOD-02 | Import valid flood polygons | A | P0 | FLOOD-01 | TODO |
-| FLOOD-03 | Implement PostGIS road intersections | A | P0 | FLOOD-02, GEO-05 | TODO |
-| FLOOD-04 | Deduplicate physical road segments | A | P0 | FLOOD-03 | TODO |
-| FLOOD-05 | Map affected segments to blocked arcs | A | P0 | FLOOD-04 | TODO |
-| FLOOD-06 | Implement scenario-aware routing | A | P0 | ROUTE-03, FLOOD-05 | TODO |
-| FLOOD-07 | Implement impact metrics | A | P0 | FLOOD-04 | TODO |
-| FLOOD-08 | Write spatial integration tests | A | P0 | FLOOD-03 | TODO |
+| FLOOD-01 | Create three simulated scenarios | A | P0 | DB-03, GEO-01 | DONE |
+| FLOOD-02 | Import valid flood polygons | A | P0 | FLOOD-01 | DONE |
+| FLOOD-03 | Implement PostGIS road intersections | A | P0 | FLOOD-02, GEO-05 | DONE |
+| FLOOD-04 | Deduplicate physical road segments | A | P0 | FLOOD-03 | DONE |
+| FLOOD-05 | Map affected segments to blocked arcs | A | P0 | FLOOD-04 | DONE |
+| FLOOD-06 | Implement scenario-aware routing | A | P0 | ROUTE-03, FLOOD-05 | DONE |
+| FLOOD-07 | Implement impact metrics | A | P0 | FLOOD-04 | DONE |
+| FLOOD-08 | Write spatial integration tests | A | P0 | FLOOD-03 | DONE |
 
 ### Phase D acceptance
 
@@ -256,16 +263,16 @@ Next: FLOOD-01 (PostGIS flood intersection) + API-01 (routing endpoint)
 
 | ID | Task | Owner | Priority | Depends on | Status |
 |---|---|---|---|---|---|
-| API-01 | Implement shared Zod contracts | A | P0 | SET-05 | TODO |
-| API-02 | Study-area endpoints | A | P0 | DB-03 | TODO |
-| API-03 | Road GeoJSON endpoint | A | P0 | GEO-05 | TODO |
-| API-04 | Scenario-list and zone endpoints | A | P0 | FLOOD-02 | TODO |
-| API-05 | Scenario-impact endpoint | A | P0 | FLOOD-07 | TODO |
-| API-06 | Routing snap endpoint | A | P0 | ROUTE-06 | TODO |
-| API-07 | Route endpoint | A | P0 | ROUTE-05 | TODO |
-| API-08 | Route comparison endpoint | A | P0 | FLOOD-06 | TODO |
-| API-09 | Consistent error handling | A | P0 | API-01 | TODO |
-| API-10 | API contract tests | A | P0 | API-02–API-09 | TODO |
+| API-01 | Implement shared Zod contracts | A | P0 | SET-05 | DONE |
+| API-02 | Study-area endpoints | A | P0 | DB-03 | DONE |
+| API-03 | Road GeoJSON endpoint | A | P0 | GEO-05 | DONE |
+| API-04 | Scenario-list and zone endpoints | A | P0 | FLOOD-02 | DONE |
+| API-05 | Scenario-impact endpoint | A | P0 | FLOOD-07 | DONE |
+| API-06 | Routing snap endpoint | A | P0 | ROUTE-06 | DONE |
+| API-07 | Route endpoint | A | P0 | ROUTE-05 | DONE |
+| API-08 | Route comparison endpoint | A | P0 | FLOOD-06 | DONE |
+| API-09 | Consistent error handling | A | P0 | API-01 | DONE |
+| API-10 | API contract tests | A | P0 | API-02–API-09 | DONE |
 | API-11 | Data provenance endpoint | A | P1 | GEO-07 | TODO |
 
 ### Phase E acceptance
@@ -285,23 +292,23 @@ Next: FLOOD-01 (PostGIS flood intersection) + API-01 (routing endpoint)
 | ID | Task | Owner | Priority | Depends on | Status |
 |---|---|---|---|---|---|
 | UI-01 | Implement ATLAS design tokens | A | P0 | SET-03 | DONE |
-| UI-02 | Implement application shell | A | P0 | UI-01 | TODO |
-| UI-03 | Integrate MapLibre | A | P0 | SET-03 | TODO |
-| UI-04 | Load study-area and road layers | A | P0 | UI-03, API-03 | TODO |
-| UI-05 | Implement Scenario Lab | A | P0 | UI-02, API-04 | TODO |
-| UI-06 | Render flood polygons | A | P0 | UI-03, API-04 | TODO |
-| UI-07 | Render affected road segments | A | P0 | API-05, UI-03 | TODO |
-| UI-08 | Implement origin/destination selection | A | P0 | UI-03, API-06 | TODO |
-| UI-09 | Render baseline and scenario routes | A | P0 | UI-08, API-08 | TODO |
-| UI-10 | Implement Impact Inspector | A | P0 | UI-02, API-05 | TODO |
-| UI-11 | Add loading and error states | A | P0 | UI-05–UI-10 | TODO |
-| UI-12 | Prevent stale scenario responses | A | P0 | UI-05, UI-09 | TODO |
+| UI-02 | Implement application shell | A | P0 | UI-01 | DONE |
+| UI-03 | Integrate MapLibre | A | P0 | SET-03 | DONE |
+| UI-04 | Load study-area and road layers | A | P0 | UI-03, API-03 | DONE |
+| UI-05 | Implement Scenario Lab | A | P0 | UI-02, API-04 | DONE |
+| UI-06 | Render flood polygons | A | P0 | UI-03, API-04 | DONE |
+| UI-07 | Render affected road segments | A | P0 | API-05, UI-03 | DONE |
+| UI-08 | Implement origin/destination selection | A | P0 | UI-03, API-06 | DONE |
+| UI-09 | Render baseline and scenario routes | A | P0 | UI-08, API-08 | DONE |
+| UI-10 | Implement Impact Inspector | A | P0 | UI-02, API-05 | DONE |
+| UI-11 | Add loading and error states | A | P0 | UI-05–UI-10 | DONE |
+| UI-12 | Prevent stale scenario responses | A | P0 | UI-05, UI-09 | DONE |
 
 UI-01 light/dark theme enhancement verified 2026-10-13. Palette tokens, accessible
 theme control, system preference handling, pre-paint bootstrap and MapLibre style
 configuration are implemented in the frontend. 44 foreground/surface contrast
 checks, 10 theme lifecycle tests, and browser reviews at desktop/mobile passed.
-MapLibre itself remains unimplemented (UI-03).
+UI-03 is now implemented and production-browser verified (2026-10-14), using Liberty/Dark styles with restored semantic GIS overlays.
 
 ### Phase F acceptance
 
@@ -483,18 +490,18 @@ CICD-05+ need the `DATABASE_URL` GitHub secret and a real run (see
 
 | ID | Task | Owner | Priority | Depends on | Status |
 |---|---|---|---|---|---|
-| QA-01 | Routing regression suite | A | P0 | ROUTE-08 | TODO |
-| QA-02 | PostGIS integration suite | A | P0 | FLOOD-08 | TODO |
-| QA-03 | API contract regression | A | P0 | API-10 | TODO |
-| QA-04 | Cypress core workflow | Shared | P0 | UI-12, SHELTER-07 | TODO |
-| QA-05 | Test rapid scenario switching | A | P0 | UI-12 | TODO |
-| QA-06 | Validate route geometry visually | A | P0 | UI-09 | TODO |
-| QA-07 | Test desktop layouts | A | P1 | UI-10 | TODO |
-| QA-08 | Test mobile layout | A | P1 | UI-10 | TODO |
-| QA-09 | Review accessibility | Shared | P1 | UI-11 | TODO |
+| QA-01 | Routing regression suite | A | P0 | ROUTE-08 | DONE |
+| QA-02 | PostGIS integration suite | A | P0 | FLOOD-08 | DONE |
+| QA-03 | API contract regression | A | P0 | API-10 | DONE |
+| QA-04 | Cypress core workflow | Shared | P0 | UI-12, SHELTER-07 | IN_REVIEW |
+| QA-05 | Test rapid scenario switching | A | P0 | UI-12 | DONE |
+| QA-06 | Validate route geometry visually | A | P0 | UI-09 | DONE |
+| QA-07 | Test desktop layouts | A | P1 | UI-10 | DONE |
+| QA-08 | Test mobile layout | A | P1 | UI-10 | DONE |
+| QA-09 | Review accessibility | Shared | P1 | UI-11 | IN_REVIEW |
 | QA-10 | Verify deployment smoke tests | B | P0 | CICD-10 | TODO |
 | QA-11 | Verify no exposed credentials | B | P0 | CICD-10 | TODO |
-| QA-12 | Inspect actual browser screenshots | A | P1 | UI-10 | TODO |
+| QA-12 | Inspect actual browser screenshots | A | P1 | UI-10 | DONE |
 
 ### Acceptance
 
@@ -538,10 +545,10 @@ AI must never become a dependency for routing or flood analysis.
 | DOC-02 | Add architecture diagram | Shared | P0 | SET-04, INF-06 | TODO |
 | DOC-03 | Add routing/data-flow diagram | A | P0 | ROUTE-05 | TODO |
 | DOC-04 | Add database schema overview | A | P1 | DB-03 | TODO |
-| DOC-05 | Add verified screenshots | A | P0 | QA-12 | TODO |
+| DOC-05 | Add verified screenshots | A | P0 | QA-12 | DONE |
 | DOC-06 | Document data provenance | A | P0 | GEO-07 | TODO |
 | DOC-07 | Document actual AWS deployment | B | P0 | CICD-10 | TODO |
-| DEMO-01 | Verify stable demo fixture | A | P0 | QA-04 | TODO |
+| DEMO-01 | Verify stable demo fixture | A | P0 | QA-04 | DONE |
 | DEMO-02 | Prepare presentation | Shared | P0 | DEMO-01 | TODO |
 | DEMO-03 | Record backup demo | Shared | P0 | DEMO-01 | TODO |
 | DEMO-04 | Rehearse full demo | Shared | P0 | DEMO-02 | TODO |

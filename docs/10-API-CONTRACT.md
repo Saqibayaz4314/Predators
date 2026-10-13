@@ -1,5 +1,10 @@
 # 10 — API CONTRACT & INTEGRATION SPECIFICATION
 
+## Implementation verification — 2026-10-14
+
+Core study-area/list/detail/roads/scenarios, scenario/detail/zones/impact and snap/route/compare endpoints match shared Zod contracts in packages/shared/src/geospatial.ts. Actual real-data responses validated by app/backend/scripts/verify-demo.mjs. Road FeatureCollections contain one representative geometry per physical segment; zone response metadata carries active datasetVersion. Graph BIGINT IDs remain JSON strings; unreachable returns null distance/geometry and explicit outcome. Dataset conflicts retain 409 and domain error codes. No shelter API completion is claimed.
+
+
 **Project:** Flood Digital Twin  
 **Challenge:** CL-01 — Flood Risk & Evacuation Planner  
 **Version:** 1.0  

@@ -1,6 +1,54 @@
 # AI AGENT HANDOFF — Flood Digital Twin
 
-## Latest handoff — 2026-10-14 (INF-01..06, TF-02/06, K8S, CICD adaptation)
+## Latest handoff — 2026-10-14 (Backend stabilization and ATLAS map)
+
+**Tasks:** FLOOD-01..08, API-01..10, UI-01..12. **Status:** DONE for the assigned map/routing vertical slice. Shelter analysis remains TODO.
+
+### Verified behavior
+
+Real OpenStreetMap/PostGIS geometry renders through MapLibre 6. Light style is https://tiles.openfreemap.org/styles/liberty and dark style is https://tiles.openfreemap.org/styles/dark. Style reload reinstalls all six GeoJSON sources and ten semantic layers. Blue simulated polygons, red affected physical roads, dashed blue baseline and solid green scenario paths remain distinct in both themes. No fabricated route geometry or analytical metrics.
+
+Origin/destination use the real snap API (map click, accessible center picker or coordinate inputs). Query keys include area, dataset, scenario and endpoints; cancellation prevents obsolete point selection. Scenario changes recalculate requested comparisons. Impact Inspector exposes authoritative segment/arc counts, route outcomes and distances. All three scenario selections, theme changes, persistence, mobile touch pan/zoom, snapping, errors/retry, empty datasets and unreachable results passed production-preview browser checks. Actual screenshots were inspected.
+
+### Backend root causes and fixes
+
+The prior TLS setting disabled verification; pg SSL URL parameters could also override explicit configuration. Strip those parameters, verify hostname/chain, and use the official public Amazon RDS CA bundle (compiled in src/db/rds-ca.ts) for RDS endpoints. Other endpoints use system trust or DATABASE_CA_CERT. No secrets are bundled.
+
+Cold graph loads competed across parallel DB tests and clients leaked on failing setup. Tests now release clients, fail instead of silently skipping DB errors, and run DB files sequentially. Graph loading shares version-specific pending work through a bounded pool; invalidation cannot repopulate an obsolete graph. Domain error codes are preserved for 404/409. Dijkstra rejects disconnected arc geometry and scenario distances cannot shrink when arcs are removed. Final backend suite: 119/119 PASSED; frontend: 33/33 PASSED.
+
+### Endpoints verified
+
+GET /health, /ready, /api/v1/status; GET /api/v1/study-areas, /study-areas/:id, /study-areas/:id/roads, /study-areas/:id/scenarios, /scenarios/:id, /scenarios/:id/zones, /scenarios/:id/impact; POST /api/v1/routing/snap, /routing/route, /routing/compare. Shared Zod schemas validate actual responses. Roads contain one representative geometry per physical segment; zone metadata includes the active dataset version.
+
+### Reproducible demo
+
+Area: 020ce29e-ec4f-4514-b14f-58c1252191cc; dataset sukkur-osm-2026-10-v1. Existing data was verified, not imported again.
+
+| Scenario | Zones | Affected physical segments | Blocked directed arcs |
+|---|---:|---:|---:|
+| Localized Flood | 1 | 549 | 1,082 |
+| Bridge Corridor Flood | 1 | 1,971 | 3,906 |
+| Wide Flood Disruption | 2 | 1,682 | 3,283 |
+
+Choose **Load rerouting demo**: Bridge Corridor Flood, node 529 → 806, baseline 4,417.8 m, scenario 4,981.7 m, +563.9 m (+12.76%). Choose **Load unreachable demo**: 11243 → 2814, baseline 4,498.7 m, scenario unreachable and no scenario line. Presets still call backend snapping. API verifier also confirms a rerouting pair for every scenario and excludes every blocked arc.
+
+### Commands and evidence
+
+Run from app/backend: npm exec --package=pnpm@10.30.1 -- pnpm typecheck; npm exec --package=pnpm@10.30.1 -- pnpm build; npm exec --package=pnpm@10.30.1 -- pnpm test; node scripts/verify-demo.mjs (requires ignored .env and compiled shared/backend packages).
+
+Run from app/frontend: npm exec --package=pnpm@10.30.1 -- pnpm typecheck; npm exec --package=pnpm@10.30.1 -- pnpm test; npm exec --package=pnpm@10.30.1 -- pnpm build. Start backend on 3001, then vite preview --host 127.0.0.1 --port 4174. Set TEST_BASE_URL=http://127.0.0.1:4174 and run node scripts/verify-browser.mjs. Browser verification requires installed Chrome and outbound OpenFreeMap access; TEST_BROWSER_CHANNEL can override the channel. Report and six final screenshots: app/frontend/artifacts/. Latest report: PASSED, production preview, 49 successful vector tiles, zero page errors.
+
+### Implementation files
+
+Frontend: App.tsx, GeographicMap.tsx, geospatial-api.ts, map-layers.ts, workspace-store.ts, map-theme.ts, styles.css, vite.config.ts; adjacent unit tests and scripts/verify-browser.mjs. Dependencies: MapLibre, Zustand, GeoJSON types and Playwright; pnpm-lock.yaml updated.
+Backend: db/connection.ts, db/rds-ca.ts, routing graph/cache/Dijkstra/services, app.ts, modules/studyAreas.ts, routes/studyAreas.ts and scenarios.ts, tests and scripts/verify-demo.mjs. Contracts: packages/shared/src/geospatial.ts and index.ts. Earlier backend changes were included in ebe85e4 by the concurrent infrastructure workstream; do not reset that history.
+
+### Limits and next task
+
+MapLibre's engine yields a Vite large-chunk advisory; build PASSED. External tile failure has visible retry. User instruction: keep this milestone local; do not push to origin. No public deployment or Docker smoke test was run by this workstream. Preserve Developer B's infrastructure state. User confirmed credential rotation and local configuration update; cloud secret state was not inspected. Next: SHELTER-01..08, then complete shelter-inclusive E2E and public deployment smoke tests. Prototype remains simulated scenario analysis, not official evacuation guidance.
+
+
+## Previous handoff — 2026-10-14 (INF-01..06, TF-02/06, K8S, CICD adaptation)
 
 **Tasks:** INF-01..06, TF-02/TF-06, K8S-01..09 (config), CICD-01..04.
 **Status:** DONE at configuration level (AWS-dependent tasks remain TODO).

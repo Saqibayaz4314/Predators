@@ -1,5 +1,15 @@
 # KNOWN ISSUES & BLOCKER REGISTER
 
+## Current application verification — 2026-10-14
+
+- **MAP-ISSUE-001 — RESOLVED:** MapLibre 6 has no default ESM export and its worker must be explicitly bundled by Vite. Namespace import plus worker URL fixed blank/failed map startup. Production browser loaded worker and 39 vector tiles.
+- **MAP-ISSUE-002 — RESOLVED:** Provider CSS overrode layered positioning, collapsing the map container. Explicit canvas positioning restores desktop and mobile map height. Both themes inspected.
+- **MAP-ISSUE-003 — RESOLVED:** Theme/data readiness could precede rendering restored overlays. Readiness now follows map idle and the loaded style; mobile screenshots show flood/closures and both routes after switches.
+- **DB-CACHE-001 — RESOLVED:** Concurrent cold loads and failed test setup retained DB clients. Bounded pool, version-specific shared loads, finally release, invalidation guard and sequential DB suites verified; 119 tests PASSED.
+- **UI-PERF-001 — MONITOR:** Vite warns about MapLibre engine chunk size. Production build and browser workflow pass; consider deferred map loading when optimizing startup.
+- **Pending:** shelter analysis, complete accessibility audit and public deployment smoke tests. No unresolved correctness failure in the verified map/routing slice.
+
+
 **Project:** Flood Digital Twin  
 **Challenge:** CL-01 — Flood Risk & Evacuation Planner  
 **File:** `.ai/KNOWN-ISSUES.md`  
@@ -105,8 +115,7 @@ The final demo must have:
   CI from the `DATABASE_URL` GitHub secret. Workflows read
   `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` from GitHub Secrets
   (encrypted at rest, masked in logs); hardcoded AWS account
-  ID removed from image refs and state-bucket names. SET-SEC-001 rotation
-  still applies to the Heroku DB password.
+  ID removed from image refs and state-bucket names. SET-SEC-001 rotation was subsequently confirmed by the user (see current record).
 
 - **INFRA-TODO-001 — OPEN (user action required):** GitHub secrets
   `AWS_ACCESS_KEY_ID` + `AWS_SECRET_ACCESS_KEY` were added by the user
@@ -115,19 +124,9 @@ The final demo must have:
   Docker image builds could not be verified locally (Docker daemon not
   running); first real build happens in CI (K8S-03).
 
-- **TEST-ISSUE-001 — OPEN (pre-existing, not from infra work):**
-  `tests/flood.test.ts` group C fails 3 tests (snap out-of-range 404,
-  dataset version mismatch 409, unknown scenario 404) — `routes/routing.ts`
-  and `routes/scenarios.ts` are Developer A's staged in-flight work.
-  Evidence: `npx vitest run tests/flood.test.ts` → 3 failed / 27 passed,
-  identical before and after the infrastructure changes.
+- **TEST-ISSUE-001 — RESOLVED (2026-10-14):** Preserve domain codes for snap 404, version 409 and missing scenario 404. Flood suite 30/30 and full backend suite 119/119 PASSED.
 
-- **SET-SEC-001 — USER ACTION REQUIRED:** Credentials were concurrently added to
-  `app/backend/.env.example` and surfaced during final file inspection. They were
-  removed from the staged example before commit and preserved in an ignored local
-  environment file. Rotate the affected database password and API key because they
-  appeared in tool output. No database/provider request was made. Do not copy
-  secret values into this issue record or tracked example files.
+- **SET-SEC-001 — RESOLVED (user-confirmed, 2026-10-14):** User confirmed both exposed Heroku password and DigitalOcean key rotated and ignored local configuration updated. Backend connects with verified TLS. Provider account rotation was not independently inspected. Do not copy credential values into tracked files or outputs.
 
 - **SET-TOOL-001 — WORKAROUND AVAILABLE:** System pnpm 12.5.1 could not resolve
   its downloaded `@pnpm/exe` for 10.30.1 (`os error 3`). Use
@@ -135,7 +134,7 @@ The final demo must have:
   builds, typecheck and tests succeeded with this runner; global tooling was not changed.
 
 - **DB-01 — RESOLVED (2026-10-13):** PostgreSQL connection established.
-  Pool uses TLS with rejectUnauthorized:false for Heroku managed RDS.
+  Historical insecure TLS was replaced by verified TLS in DB-002 (2026-10-14).
   PostgreSQL 18.4 + PostGIS 3.6 confirmed. `/ready` returns
   `database: connected` when pool is active.
 

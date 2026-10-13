@@ -1,5 +1,10 @@
 # 05 — UI/UX DESIGN SYSTEM & EXPERIENCE BLUEPRINT
 
+## Implemented workspace verification — 2026-10-14
+
+ATLAS now renders real MapLibre layers and backend route/impact results. Existing light theme and navy dark theme retain semantic colors, persistent/system preference and pre-paint bootstrap. OpenFreeMap Liberty/Dark switch with custom overlays restored after style load. Simulated polygons are blue, affected roads red, baseline dashed blue and scenario route solid green. Loading/error/retry/empty/unreachable states are explicit. Origin/destination support real snap API via map, accessible center picker and coordinates. Desktop 1440×900/1280×800 and mobile 390×844 production-preview browser checks passed; final screenshots inspected in app/frontend/artifacts/. Full shelter workflows and broad accessibility audit remain pending.
+
+
 **Project:** Flood Digital Twin  
 **Challenge:** CL-01 — Flood Risk & Evacuation Planner  
 **Version:**  — Complete design  

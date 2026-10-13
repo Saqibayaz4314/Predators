@@ -1,6 +1,15 @@
 # ARCHITECTURE DECISION RECORD — Flood Digital Twin
 
-## DB-001 — Heroku/RDS TLS and pool sizing (ACCEPTED, 2026-10-13)
+## DB-002 — Verified database TLS (ACCEPTED, 2026-10-14)
+
+Supersedes DB-001's insecure TLS exception. Require rejectUnauthorized:true and hostname verification. Remove SSL query parameters before passing pg's explicit SSL settings. RDS endpoints trust the public AWS global bundle from https://truststore.pki.rds.amazonaws.com/global/global-bundle.pem, compiled as source so runtime builds carry it. Other endpoints use system trust or an explicit DATABASE_CA_CERT. Pool remains bounded at five connections. Actual target chain/hostname and full DB suite PASSED.
+
+## UI-002 — Real MapLibre workspace (ACCEPTED, 2026-10-14)
+
+Keep UI-001's semantic palette, synchronous bootstrap and system/user preference behavior. Use requested Liberty and Dark OpenFreeMap styles. Resolve overlay colors from theme variables and recreate sources/layers after every style load. MapLibre 6 uses its namespace ESM export and a Vite-bundled worker URL; official integration reference: https://maplibre.org/maplibre-gl-js/docs/. Accessible center selection supplements mouse/touch clicks. Zustand holds interaction state; TanStack Query owns API results with area/version/scenario/endpoint keys and AbortSignal cancellation. Playwright verifies an isolated Chrome instance against the actual production preview, real API and external tiles; it does not control the user's browser.
+
+
+## DB-001 — Heroku/RDS TLS and pool sizing (TLS SUPERSEDED by DB-002)
 
 pg Pool uses `ssl: { rejectUnauthorized: false }` for the Heroku-managed AWS RDS
 endpoint. This is intentional: Heroku Essential PostgreSQL uses an RDS certificate
@@ -17,7 +26,7 @@ for finite double-precision checks. Any future schema change must preserve this
 PG18-compatible form. The `docs/06-DATABASE-SCHEMA.md` spec predates this discovery —
 the SQL in the migration file is authoritative.
 
-## UI-001 — Theme preference and map palette (ACCEPTED, 2026-10-13)
+## UI-001 — Theme preference and map palette (style integration SUPERSEDED by UI-002)
 
 Preserve ATLAS's established light palette and expose semantic CSS custom properties
 for both the light and navy dark variants. A synchronous, local, pre-body bootstrap

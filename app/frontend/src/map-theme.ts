@@ -3,7 +3,7 @@ import type { Theme } from './theme';
 // UI-03 integration point: use on map construction AND on resolved theme changes.
 // Verified provider styles: https://github.com/hyperknot/openfreemap-styles
 export const MAP_STYLES: Record<Theme, string> = {
-  light: 'https://tiles.openfreemap.org/styles/positron',
+  light: 'https://tiles.openfreemap.org/styles/liberty',
   dark: 'https://tiles.openfreemap.org/styles/dark',
 };
 

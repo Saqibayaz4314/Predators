@@ -175,10 +175,11 @@ export async function registerScenarioRoutes(
         geometry: z.geometry,
       })),
     };
+    const { datasetVersion } = await requireStudyArea(pool, scenario.studyAreaId);
     return reply.code(200).send({
       success: true,
       data: featureCollection,
-      meta: { requestId: request.id },
+      meta: { requestId: request.id, datasetVersion },
     });
   });
 

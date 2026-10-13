@@ -5,6 +5,8 @@ import { buildApp } from '../dist/app.js';
 import { parseEnv } from '../dist/config/env.js';
 import { getPool, closePool } from '../dist/db/connection.js';
 import { getOrLoadGraph } from '../dist/routing/graphCache.js';
+import { dijkstra } from '../dist/routing/dijkstra.js';
+import { snapToNearestNodeInMemory } from '../dist/routing/snapping.js';
 import { computeScenarioImpact } from '../dist/modules/flood/floodService.js';
 import { apiSuccessSchema, studyAreasSchema, studyAreaDetailSchema, roadsSchema, scenariosSchema, scenarioDetailSchema, zonesSchema, impactSchema, comparisonSchema, snapResultSchema } from '@flood/shared';
 
@@ -56,7 +58,33 @@ try {
       } else assert.equal(comparison.scenario.geometry, null);
       pairs.push({ originNodeId, destinationNodeId, origin, destination, outcome: comparison.outcome, baselineMeters: comparison.baseline.distanceMeters, scenarioMeters: comparison.scenario.distanceMeters });
     }
-    output.push({ scenarioId: scenario.id, title: scenario.title, zones: zones.features.length, affectedSegments: impact.affectedPhysicalSegments, blockedArcs: impact.blockedDirectedArcs, pairs });
+    // Find a reproducible alternate-path fixture near the actual simulated zones.
+    const positions = zones.features.flatMap((feature) => feature.geometry.coordinates.flat(2));
+    const xmin = Math.min(...positions.map((point) => point[0])) - .005;
+    const xmax = Math.max(...positions.map((point) => point[0])) + .005;
+    const ymin = Math.min(...positions.map((point) => point[1])) - .005;
+    const ymax = Math.max(...positions.map((point) => point[1])) + .005;
+    const candidates = new Set();
+    for (let x = 0; x <= 4; x++) for (let y = 0; y <= 4; y++) {
+      const node = snapToNearestNodeInMemory(graph, xmin + (xmax - xmin) * x / 4, ymin + (ymax - ymin) * y / 4, 500);
+      if (node) candidates.add(node.nodeId);
+    }
+    let rerouteFixture = null;
+    outer: for (const originNodeId of candidates) for (const destinationNodeId of candidates) {
+      if (originNodeId === destinationNodeId) continue;
+      const baseline = dijkstra(graph, { originNodeId, destinationNodeId, blockedArcIds: new Set() });
+      if (baseline.status !== 'found' || !baseline.arcIdPath.some((id) => internal.blockedArcIds.has(id))) continue;
+      const flooded = dijkstra(graph, { originNodeId, destinationNodeId, blockedArcIds: internal.blockedArcIds });
+      if (flooded.status !== 'found') continue;
+      const comparison = await request('/routing/compare', comparisonSchema, { ...context, scenarioId: scenario.id, originNodeId, destinationNodeId });
+      assert.equal(comparison.outcome, 'rerouted');
+      assert(comparison.scenario.distanceMeters >= comparison.baseline.distanceMeters);
+      assert(comparison.scenario.arcIds.every((id) => !internal.blockedArcIds.has(id)));
+      rerouteFixture = { origin: graph.nodes.get(originNodeId), destination: graph.nodes.get(destinationNodeId), baselineMeters: comparison.baseline.distanceMeters, scenarioMeters: comparison.scenario.distanceMeters };
+      break outer;
+    }
+    assert(rerouteFixture, `${scenario.title} must have a verified rerouting fixture`);
+    output.push({ scenarioId: scenario.id, title: scenario.title, zones: zones.features.length, affectedSegments: impact.affectedPhysicalSegments, blockedArcs: impact.blockedDirectedArcs, pairs, rerouteFixture });
   }
   assert(output.some((scenario) => scenario.pairs.some((pair) => ['rerouted', 'unreachable'].includes(pair.outcome))), 'A verified flood-routing demo is required');
   const valid = await pool.query('SELECT bool_and(ST_IsValid(geom) AND NOT ST_IsEmpty(geom) AND ST_SRID(geom) = 4326) AS valid FROM flood_zones');

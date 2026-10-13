@@ -1,6 +1,18 @@
 # CURRENT STATE — Flood Digital Twin
 
-## Latest verified state — 2026-10-14 (Infrastructure adaptation)
+## Latest verified state — 2026-10-14 (Real map vertical slice)
+
+- **Completed:** FLOOD-01..08, API-01..10, UI-01..12; real PostGIS/OSM scenario analysis and MapLibre workspace. Existing scenarios verified; no reseeding or base-graph mutation.
+- **Dataset:** sukkur-osm-2026-10-v1; 11,940 nodes, 29,448 arcs, 15,152 physical segments. Three scenarios contain four flood zones in total.
+- **Backend stabilization:** verified database TLS with public AWS RDS CA, sanitized domain errors, active-version graph loading, bounded cache/pool lifecycle, continuous real route geometry and blocked-arc exclusion.
+- **Security:** user confirmed both exposed credentials rotated and ignored local configuration updated. Connection chain and hostname validation PASSED; no insecure TLS fallback.
+- **Frontend:** Liberty/Dark OpenFreeMap styles, semantic overlays restored on style changes, persistent/system theme without initial flash, real snapping/routing/impact, cancellable versioned queries, error/retry/empty/unreachable states, responsive map-first mobile layout.
+- **PASSED:** backend 119/119; frontend 33/33; backend/frontend typechecks and builds; real API demo verifier; production-preview browser checks (1440×900, 1280×800, 390×844), actual vector tiles, worker, touch pan/zoom, theme persistence, three scenarios, rapid switching and recovery. Screenshots inspected in app/frontend/artifacts/.
+- **Local review:** backend 3001; production frontend preview http://127.0.0.1:4174. These are local processes, not a verified public deployment.
+- **Next:** SHELTER-01..08. Full shelter-inclusive E2E, broad accessibility audit and public deployment smoke tests remain open. Infrastructure work belongs to Developer B; its historical handoff is preserved below.
+
+
+## Previous verified state — 2026-10-14 (Infrastructure adaptation)
 
 - **Phase:** Infrastructure (Developer B) — Terraform/K8s/GitHub Actions adapted from previous project.
 - **Terraform:** cluster `flood-digital-twin-eks`; ECR repos `flood-digital-twin-frontend` + `flood-digital-twin-backend`; `terraform fmt -check` exit 0; `terraform validate` PASSED locally. EKS `cluster_version 1.36` verified supported (AWS released 1.36 Oct 2026; cluster creator gets admin via `bootstrap_cluster_creator_admin_permissions`).
