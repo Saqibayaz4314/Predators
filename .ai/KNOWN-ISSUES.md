@@ -73,6 +73,13 @@ The final demo must have:
 
 **Infrastructure adaptation (2026-10-14) — new entries:**
 
+- **CI-ISSUE-002 — RESOLVED (2026-10-14):** Second pipeline run (after the
+  jq fix): Terraform apply, ECR builds and image pushes all succeeded; the
+  secret step failed with `namespaces "flood-digital-twin" not found` — the
+  `flood-secrets` upsert ran before `k8s/namespace.yaml` was applied.
+  Fix: `deploy.yaml` now applies the namespace first inside the secret step
+  (idempotent; the manifests step applies it again). YAML re-validated.
+
 - **CI-ISSUE-001 — RESOLVED (2026-10-14):** First pipeline run: Terraform
   apply succeeded (VPC/ECR/EKS created, `vpc_id` printed), then the output
   extraction step failed —

@@ -141,12 +141,15 @@ jobs:
           aws eks update-kubeconfig --region "${{ env.AWS_REGION }}" \
             --name "${{ env.CLUSTER_NAME || env.EKS_CLUSTER_NAME }}"
 
+      # The namespace must exist before the secret can be upserted;
+      # applying it here (and again in the manifests step) is idempotent.
       # DATABASE_URL is passed via environment so the value never appears in
       # the step source; GitHub masks it in logs automatically.
       - name: Create Kubernetes Secret from GitHub Secrets
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
         run: |
+          kubectl apply -f k8s/namespace.yaml
           if [ -n "$DATABASE_URL" ]; then
             kubectl create secret generic flood-secrets -n "${{ env.K8S_NAMESPACE }}" \
               --from-literal=DATABASE_URL="$DATABASE_URL" \
