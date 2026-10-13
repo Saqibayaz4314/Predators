@@ -3,9 +3,10 @@ import Fastify, { LogController } from 'fastify';
 import cors from '@fastify/cors';
 import { ZodError } from 'zod';
 import type { Env } from './config/env.js';
+import type pg from 'pg';
 import { registerStatusRoutes } from './routes/status.js';
 
-export function buildApp(env: Env) {
+export function buildApp(env: Env, pool: pg.Pool | null = null) {
   const app = Fastify({
     logger: env.NODE_ENV === 'test' ? false : { level: env.LOG_LEVEL },
     logController: new LogController({ disableRequestLogging: true }),
@@ -35,6 +36,6 @@ export function buildApp(env: Env) {
     meta: { requestId: request.id },
   }));
   app.register(cors, { origin: env.CORS_ORIGIN });
-  app.register(async (instance) => registerStatusRoutes(instance, env));
+  app.register(async (instance) => registerStatusRoutes(instance, env, pool));
   return app;
 }

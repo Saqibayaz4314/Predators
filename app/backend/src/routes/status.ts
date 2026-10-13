@@ -1,19 +1,44 @@
+/**
+ * Phase D — /ready endpoint with real DB health check.
+ *
+ * /health  — dependency-free, always 200 while the process is alive.
+ * /ready   — 200 only when DB + PostGIS are verified and dataset/graph are loaded.
+ * /api/v1/status — synchronous snapshot for frontend connectivity probing.
+ */
 import type { FastifyInstance } from 'fastify';
+import type pg from 'pg';
 import type { Env } from '../config/env.js';
-import { getServiceStatus } from '../services/status.js';
+import { getServiceStatus, getFullReadinessState } from '../services/status.js';
 
-export async function registerStatusRoutes(app: FastifyInstance, env: Env) {
+export async function registerStatusRoutes(
+  app: FastifyInstance,
+  env: Env,
+  pool: pg.Pool | null,
+) {
   app.get('/health', async (request) => ({
     success: true, data: { status: 'ok' }, meta: { requestId: request.id },
   }));
-  app.get('/ready', async (request, reply) => reply.code(503).send({
-    success: false,
-    error: {
-      code: 'SERVICE_NOT_READY', message: 'Required analysis dependencies are not initialized.',
-      details: { checks: getServiceStatus(env).checks },
-    },
-    meta: { requestId: request.id },
-  }));
+
+  app.get('/ready', async (request, reply) => {
+    const state = await getFullReadinessState(env, pool);
+    if (state.ready) {
+      return reply.code(200).send({
+        success: true,
+        data: { status: 'ready', checks: state.checks },
+        meta: { requestId: request.id },
+      });
+    }
+    return reply.code(503).send({
+      success: false,
+      error: {
+        code: 'SERVICE_NOT_READY',
+        message: 'Required analysis dependencies are not initialized.',
+        details: { checks: state.checks },
+      },
+      meta: { requestId: request.id },
+    });
+  });
+
   await app.register(async (api) => {
     api.get('/status', async (request) => ({
       success: true, data: getServiceStatus(env), meta: { requestId: request.id },
