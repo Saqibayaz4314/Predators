@@ -1,994 +1,683 @@
-# Flood Digital Twin
+# ATLAS — Flood Digital Twin
 
-### Geospatial Flood Scenario Analysis & Road Network Resilience
+**Exploring how hypothetical flood scenarios reshape road-network accessibility and route planning in real urban terrain.**
 
-**CL-01 — Flood Risk & Evacuation Planner**
-
-An interactive geospatial decision-support prototype that explores how simulated flooding affects road accessibility, shortest paths and shelter reachability.
-
-Built with real OpenStreetMap-derived roads, PostgreSQL/PostGIS, graph algorithms and an interactive map interface.
-
-> **Important:** Flood Digital Twin is a scenario-analysis prototype. Its flood zones are hypothetical. It does not provide real-time flood predictions, official evacuation instructions or verified safe routes.
+CL-01 · Climate Resilience & Disaster Management · Hackathon Submission
 
 ---
 
-## Project Status
-
-**Current status:** Foundation implemented (SET-01–SET-08); verification evidence is maintained in `.ai/HANDOFF.md`. Geographic analysis and deployment remain pending.
-
-The architecture and implementation specifications are prepared. Features, deployment and test results must be verified against the actual repository before being marked complete.
-
-| Component | Planned technology | Verification |
-|---|---|---|
-| Interactive map | React + MapLibre | Pending |
-| Road network | OpenStreetMap | Pending |
-| Spatial analysis | PostgreSQL + PostGIS | Pending |
-| Routing engine | TypeScript Dijkstra | Pending |
-| Flood scenarios | Simulated polygons | Pending |
-| Shelter reachability | Directed graph analysis | Pending |
-| Backend API | Fastify + TypeScript | Pending |
-| Infrastructure | AWS EKS + Terraform | Pending |
-| CI/CD | GitHub Actions | Pending |
+| | |
+|---|---|
+| **Live Demo** | [http://acc8e62b434c84a26ac87f22b9c0a716-aad1bc7f4f666153.elb.ap-southeast-2.amazonaws.com/](http://acc8e62b434c84a26ac87f22b9c0a716-aad1bc7f4f666153.elb.ap-southeast-2.amazonaws.com/) |
+| **Pilot Area** | Sukkur / Rohri, Sindh, Pakistan |
+| **Road Data** | OpenStreetMap · ODbL · © OpenStreetMap contributors |
+| **Deployment** | AWS EKS · ap-southeast-2 · Kubernetes + GitHub Actions |
+| **Simulation** | Hypothetical flood scenarios only — not a real-time flood forecast |
 
 ---
 
-## 1. The Problem
-
-During flooding, a road network can become fragmented.
-
-A road that is normally available may become impassable, potentially disconnecting neighborhoods from important destinations.
-
-Traditional shortest-path routing does not automatically account for hypothetical flood-related road closures.
-
-This creates several planning questions:
-
-- Which roads would be affected by a given flood scenario?
-- How would a shortest route change?
-- Would an alternative connected route still exist?
-- Which shelter candidates would remain reachable?
-- How does network accessibility change across scenarios?
-
-Flood Digital Twin provides an interactive environment for exploring these questions using deterministic geospatial and graph analysis.
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.x-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
+[![Node.js](https://img.shields.io/badge/Node.js-22_LTS-339933?logo=node.js&logoColor=white)](https://nodejs.org/)
+[![React](https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=white)](https://react.dev/)
+[![MapLibre GL JS](https://img.shields.io/badge/MapLibre_GL_JS-6-396CB2?logo=maplibre&logoColor=white)](https://maplibre.org/)
+[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-18_+_PostGIS_3.6-336791?logo=postgresql&logoColor=white)](https://postgis.net/)
+[![Fastify](https://img.shields.io/badge/Fastify-5-000000?logo=fastify&logoColor=white)](https://fastify.dev/)
+[![AWS EKS](https://img.shields.io/badge/AWS_EKS-Kubernetes_1.36-FF9900?logo=amazonaws&logoColor=white)](https://aws.amazon.com/eks/)
+[![Terraform](https://img.shields.io/badge/Terraform-≥1.5-7B42BC?logo=terraform&logoColor=white)](https://www.terraform.io/)
 
 ---
 
-## 2. Our Solution
+## Contents
 
-Flood Digital Twin combines five core capabilities:
-
-**Real road network:** Imports actual OSM-derived roads and constructs a directed graph.
-
-**Simulated flood scenarios:** Displays predefined hypothetical flood polygons over a selected study area.
-
-**Spatial road-impact detection:** Uses PostGIS to identify physical road segments intersecting simulated flood zones.
-
-**Scenario-aware routing:** Excludes affected graph arcs and recalculates shortest paths.
-
-**Shelter accessibility:** Evaluates which shelter candidates remain connected through the road network.
-
-The results are visualized in a map-first interface designed for scenario exploration.
+- [The Problem](#the-problem)
+- [Our Solution](#our-solution)
+- [Live Demo](#live-demo)
+- [Engineering Results](#engineering-results)
+- [Core Features](#core-features)
+- [How Flood-Aware Routing Works](#how-flood-aware-routing-works)
+- [System Architecture](#system-architecture)
+- [Data & Methodology](#data--methodology)
+- [Tech Stack](#tech-stack)
+- [Cloud Deployment & CI/CD](#cloud-deployment--cicd)
+- [Application Screenshots](#application-screenshots)
+- [Local Development](#local-development)
+- [Testing](#testing)
+- [Limitations & Responsible Use](#limitations--responsible-use)
+- [Future Roadmap](#future-roadmap)
+- [Team & Acknowledgments](#team--acknowledgments)
 
 ---
 
-## 3. Core Workflow
+## The Problem
 
-```mermaid
-flowchart TD
-    A[OpenStreetMap Road Data] --> B[Directed Road Graph]
-    C[Simulated Flood Polygon] --> D[PostGIS Spatial Intersection]
-    B --> E[Baseline Shortest Path]
-    D --> F[Affected Road Segments]
-    F --> G[Blocked Directed Arcs]
-    B --> H[Scenario Routing]
-    G --> H
-    E --> I[Route Comparison]
-    H --> I
-    H --> J[Shelter Reachability]
-    I --> K[Interactive Map]
-    J --> K
+Sukkur and Rohri sit on opposite banks of the Indus River in Sindh, Pakistan — a region historically exposed to seasonal flooding. When roads flood, a network that appears intact on a static map can silently fragment. A bridge becomes impassable. A ring road disappears. Communities that were minutes apart become hours — or unreachable.
+
+Static mapping tools cannot answer the critical planning questions:
+
+- **Which specific roads** would be cut by a given flood extent?
+- **Does an alternative route still exist**, or is the destination now unreachable?
+- **How much longer** is the detour when it does exist?
+- **Which shelter candidates** remain reachable through the surviving road network?
+- **How do the answers change** across flood extents of different sizes and locations?
+
+Answering these questions rigorously requires connecting spatial intersection analysis with graph-based routing — not just displaying polygons on a tile layer.
+
+---
+
+## Our Solution
+
+ATLAS (flood digital twin) provides an interactive workspace that takes a real road network, applies hypothetical flood extents, and computes deterministic route and accessibility outcomes using the actual road graph.
+
+The full data and computation pipeline:
+
+```
+Real OpenStreetMap Roads (Sukkur/Rohri, Sindh)
+        ↓
+PostgreSQL/PostGIS — Directed Road Graph
+        ↓
+Baseline Dijkstra Shortest Path
+        ↓
+Select Hypothetical Flood Scenario
+        ↓
+PostGIS ST_Intersects — Affected Physical Road Segments
+        ↓
+Identify All Associated Directed Arcs (both travel directions)
+        ↓
+Re-run Dijkstra Excluding Blocked Arcs
+        ↓
+Compute Route Delta / Detect Unreachable
+        ↓
+Evaluate Shelter Candidate Reachability
+        ↓
+MapLibre GL Interactive Map — Scenario Comparison
 ```
 
-### Example scenario
-
-A user selects an origin and destination.
-
-The application first calculates a baseline route using the road graph.
-
-The user then activates a hypothetical flood scenario.
-
-PostGIS identifies intersecting road segments. The routing engine excludes their directed arcs and recalculates the path.
-
-The interface compares the results.
-
-If no valid graph path exists, the application reports the destination as unreachable rather than inventing a route.
+Every road closure, route distance and reachability result is a deterministic output of actual graph analysis against real imported data. No routes are generated by AI or approximated with straight-line distance.
 
 ---
 
-## 4. Key Features
+## Live Demo
+
+**[Open ATLAS Live Demo →](http://acc8e62b434c84a26ac87f22b9c0a716-aad1bc7f4f666153.elb.ap-southeast-2.amazonaws.com/)**
+
+> **Note:** The public URL uses HTTP (not HTTPS). The demo is deployed on AWS EKS via a Network Load Balancer in `ap-southeast-2`. It is a prototype for scenario analysis and demonstration, not a production emergency service.
+
+### Reproducing the demo workflow
+
+1. **Open the app** — the Sukkur/Rohri road network loads automatically.
+2. **Click "Load rerouting demo"** — this snaps two real coordinates to the nearest graph nodes (node 529 → 806) and selects the Bridge Corridor Flood scenario.
+3. **Click "Calculate routes"** — the baseline route (4.42 km) and scenario route (4.98 km) appear as separate lines on the map.
+4. **Inspect the Impact Inspector** — see 1,971 affected physical segments, 3,906 blocked directed arcs, and the +563.9 m / +12.76% route increase.
+5. **Click "Load unreachable demo"** — switch the origin and destination (node 11243 → 2814) to see a case where the baseline route exists but the scenario closes the only connecting path.
+6. **Click "Compare scenarios A/B/C"** — open the comparison panel to see closure counts, route deltas and reachability across all three scenarios simultaneously.
+7. **Toggle Light/Dark theme** — the map overlay layers, flood polygons and route lines are preserved across theme changes.
+
+---
+
+## Engineering Results
+
+The following values are outputs of deterministic computation against the actual imported dataset. They are simulation results for hypothetical flood scenarios and do not represent real observed flood conditions.
+
+### Road Network
+
+| Metric | Value |
+|---|---|
+| Road graph nodes | **11,940** |
+| Directed road arcs | **29,448** |
+| Physical road segments | **15,152** |
+| Largest connected component | **11,883 nodes (99.5%)** |
+| Isolated nodes | 0 |
+| Study area | Sukkur / Rohri, Sindh |
+| Dataset | `sukkur-osm-2026-10-v1` |
+| OSM data license | ODbL — © OpenStreetMap contributors |
+
+### Scenario Impact Comparison
+
+Computed for demonstration node pair: **origin node 529 → destination node 806**
+
+| Scenario | Physical Closures | Blocked Directed Arcs | Route Distance | Change vs Baseline |
+|---|---:|---:|---:|---:|
+| **Baseline** | 0 | 0 | **4,417.8 m** | — |
+| **A — Localized Flood** | 549 | 1,082 | **4,853.0 m** | +435.2 m / **+9.85%** |
+| **B — Bridge Corridor Flood** | 1,971 | 3,906 | **4,981.7 m** | +563.9 m / **+12.76%** |
+| **C — Wide Flood Disruption** | 1,682 | 3,283 | **Unreachable** | — |
+
+> Scenario C closes the only connected path between these nodes. The application reports UNREACHABLE rather than returning a fabricated route.
+
+### Scenario Overlap Analysis
+
+| Compared scenarios | Shared physical closures |
+|---|---|
+| A ∩ B | 10 segments |
+| A ∩ C | 0 segments |
+| B ∩ C | 16 segments |
+| Union A ∪ B ∪ C | 4,176 unique segments |
+| Shared by all three | 0 segments |
+
+### Test Coverage (verified)
+
+| Suite | Tests |
+|---|---|
+| Backend (graph, routing, flood, DB, accessibility, AI) | **136 / 136** |
+| Frontend (API, map layers, accessibility, theme) | **38 / 38** |
+| Browser E2E (Playwright, desktop + mobile, Light/Dark) | Passed |
+| TypeScript typecheck (all packages) | Passed |
+| Production build (frontend + backend) | Passed |
+
+---
+
+## Core Features
 
 ### Interactive Geospatial Workspace
 
-- MapLibre-based map.
-- Road network visualization.
-- Flood polygon overlays.
-- Baseline and scenario route layers.
-- Scenario selection controls.
-- Road-impact inspector.
+A map-first interface built on MapLibre GL JS with the OpenFreeMap vector tile service. The map renders the full road network, flood zone polygons, affected road highlights, and route lines simultaneously. Layers are reinstated correctly after theme switches between Light and Dark styles.
 
-### Flood Scenario Analysis
+### Real Road Network (OpenStreetMap)
 
-- Three predefined simulated scenarios.
-- Deterministic road intersection calculations.
-- Affected physical road segment counts.
-- Scenario-specific road closures.
-- Reproducible results.
+11,940 nodes and 29,448 directed arcs imported from a bounded OSM extract of Sukkur/Rohri. One-way road restrictions are respected. Physical segments with bidirectional travel generate two directed arcs; one-way segments generate one. The topology was independently validated with 18 checks before being accepted.
 
-### Graph-Based Routing
+### Flood Zone Intersection (PostGIS)
 
-- Directed road graph.
-- One-way road support.
-- Dijkstra shortest-path algorithm.
-- Binary min-heap priority queue.
-- Scenario-specific blocked arcs.
-- Explicit unreachable states.
+Hypothetical flood polygons stored in PostGIS. When a scenario is selected, `ST_Intersects` identifies every physical road segment that touches the flood polygon (boundary contact included). Both forward and reverse arcs for each affected segment are added to the blocked set.
 
-### Shelter Reachability
+### Directed-Graph Dijkstra Routing
 
-- Shelter candidate visualization.
-- Road-network accessibility checks.
-- Reachable, unreachable and unknown statuses.
-- Scenario-dependent connectivity.
+A TypeScript Dijkstra implementation using a binary min-heap priority queue. The algorithm operates on an adjacency list built from the PostGIS road graph. Blocked arc sets are passed at query time — the base graph is never mutated. Route geometry is assembled from the real imported arc geometries.
 
-### Impact Analytics
+### Scenario-Aware Route Comparison
 
-- Affected road counts.
-- Baseline versus scenario route distances.
-- Route-distance changes.
-- Reachability summaries.
-- Dataset provenance.
+Every route request returns both a baseline result (full graph) and a scenario result (graph minus blocked arcs). The outcome is one of: `found`, `rerouted`, `unchanged`, `unreachable`, or `baseline_unreachable`. A key safety invariant is enforced: the scenario route distance cannot be shorter than the baseline distance when only arcs have been removed.
 
-### Optional AI Explanation
+### Unreachable Route Detection
 
-An optional AI component may explain verified analytical results in natural language.
+When no graph path exists under the active scenario, the API returns an explicit `unreachable` status with a null geometry. The map shows no scenario route line. The Impact Inspector reports the state clearly. No fallback straight-line route is generated.
 
-AI is not responsible for calculating flood intersections, graph routes or shelter reachability.
+### Scenario Comparison (A/B/C)
 
-The system must remain functional without AI.
+A dedicated comparison panel accepts up to three scenarios simultaneously. It returns baseline and scenario routes for each, physical segment overlap sets, blocked arc counts, reachability for shelter candidates, and distance deltas. Physical closure sets are deduplicated and the pairwise intersections are computed.
+
+### Shelter Network Reachability
+
+The shelter accessibility subsystem snaps candidate locations to the nearest road graph node within 500 m. A single-source Dijkstra from the chosen origin computes reachability for all candidates simultaneously under both baseline and scenario conditions. Each candidate receives a status of `reachable`, `unreachable` or `unknown` with an explicit reason. The live database has zero verified shelter records; the UI shows an honest empty state. A separate hypothetical demonstration mode (not active in production) uses in-memory fixture destinations for development testing.
+
+PostGIS independently checks whether each candidate location falls within a simulated flood polygon. This flood flag is displayed separately and does not override network reachability.
+
+### AI Scenario Explanation (implemented, optional)
+
+A `POST /api/v1/ai/explain` endpoint generates a natural-language explanation of verified deterministic results using a DigitalOcean-hosted language model. The AI module includes: a prompt builder, an output validator, a DigitalOcean provider, and a mandatory deterministic fallback. The AI cannot calculate routes, invent road closure counts, or override numerical results. If the provider call fails, the fallback explanation is returned without interrupting the main application.
+
+### Light / Dark Theme
+
+A dual theme system built on CSS custom properties under an ATLAS design token set. The currently selected theme (Light, Dark, or System) is persisted in `localStorage` and applied before the first render to prevent flash. Theme toggles on the topbar update both the document root and the MapLibre style URL.
+
+### Responsive Design
+
+The three-column workspace (Scenario Lab · Map · Impact Inspector) collapses to a single-column stacked layout on mobile. Tested at 1440×900, 1280×800 and 390×844 viewports in both themes using Playwright.
 
 ---
 
-## 5. What Makes It Different?
+## How Flood-Aware Routing Works
 
-### 1. Network-aware analysis
+```mermaid
+flowchart TD
+    A["User selects origin and destination\n(map click or coordinate input)"] --> B
 
-The project goes beyond drawing flood polygons on a map.
+    B["Snap to nearest road graph node\n(Haversine O(n) in-memory, 500 m radius)"] --> C
 
-It connects spatial road impacts to graph-based accessibility analysis.
+    C["Compute baseline Dijkstra\n(full directed graph, binary min-heap)"] --> D
 
-### 2. Deterministic routing
+    D["User selects a flood scenario"] --> E
 
-Routes are computed using a reproducible algorithm, not generated by an LLM.
+    E["PostGIS ST_Intersects\nroad_edges.geom ∩ flood_zones.geom"] --> F
 
-### 3. Scenario comparison
+    F["Deduplicate physical_segment_id\nCollect all directed arc IDs for each segment"] --> G
 
-Users can compare the original road network against a simulated disrupted network.
+    G["Blocked arc set\n(both travel directions)"] --> H
 
-### 4. Explicit uncertainty
+    H["Re-run Dijkstra\n(same graph, blocked arcs excluded)"] --> I
 
-The application distinguishes hypothetical flood scenarios, graph connectivity and real-world safety.
+    I{"Path found?"}
 
-### 5. Cloud-native delivery
+    I -->|Yes| J["Compute distance delta\nAssemble GeoJSON geometry from arc linestrings\nVerify scenario distance ≥ baseline distance"]
+    I -->|No| K["Return UNREACHABLE\nNull geometry — no fabricated route"]
 
-The intended deployment uses a containerized application with existing Terraform and Kubernetes infrastructure adapted for AWS.
+    J --> L["Return route comparison to frontend\nMapLibre renders baseline (blue) + scenario (green) lines"]
+    K --> L
+```
 
-Deployment details will be updated after verification.
+### Why directed arcs matter
 
----
+A bidirectional road has **two** directed arcs — one in each travel direction. A one-way road has **one**. When a physical segment is flooded, both arcs for that segment are blocked. This correctly prevents the algorithm from using the flooded road in either direction, while preserving one-way restrictions on adjacent unaffected roads.
 
-## 6. Technology Stack
+### The baseline invariant
 
-| Layer | Technology |
-|---|---|
-| Frontend | React, Vite, TypeScript |
-| Styling | Tailwind CSS, shadcn/ui |
-| Maps | MapLibre GL JS |
-| State | Zustand, TanStack Query |
-| Charts | Recharts |
-| Icons | Lucide React |
-| Backend | Node.js, Fastify, TypeScript |
-| Validation | Zod |
-| ORM | Drizzle |
-| Database | PostgreSQL |
-| Geospatial | PostGIS |
-| Road data | OpenStreetMap |
-| Routing | TypeScript Dijkstra |
-| Unit testing | Vitest |
-| E2E testing | Cypress |
-| Containers | Docker |
-| Infrastructure | Terraform, Kubernetes |
-| Cloud | AWS EKS, Amazon ECR |
-| CI/CD | GitHub Actions |
-| Optional AI | DigitalOcean hosted inference |
+When arcs are only removed (never added), the shortest path through the surviving graph cannot be shorter than the shortest path through the full graph. This invariant is enforced in the `compareRoutes` function — if violated, an error is thrown before the result is returned.
 
-Technology availability and final deployment details must be verified during implementation.
+### Distance vs straight-line
+
+All distances are **network distances** measured along the actual road graph using Haversine arc lengths stored in the database. No Euclidean or straight-line approximations are used anywhere in the routing pipeline.
 
 ---
 
-## 7. System Architecture
+## System Architecture
 
 ```mermaid
 flowchart TB
-    U[User Browser] --> F[React Frontend]
-    F --> API[Fastify REST API]
+    Browser["User Browser\nReact + MapLibre GL JS"] --> LB
 
-    subgraph Application Backend
-        API --> SC[Scenario Service]
-        API --> RT[Routing Service]
-        API --> SH[Shelter Service]
-        API --> AN[Analytics Service]
+    subgraph AWS["AWS ap-southeast-2"]
+        LB["Network Load Balancer"]
+        subgraph EKS["Amazon EKS — flood-digital-twin-eks"]
+            FE["flood-frontend\nnginx — port 80\nServes React SPA\nProxy /api/ → backend"]
+            BE["flood-backend\nNode.js — port 3001\n/health  /ready  /api/v1"]
+        end
+        LB --> FE
+        FE --> BE
     end
 
-    SC --> SP[PostGIS Spatial Queries]
-    RT --> GR[In-Memory Directed Graph]
-    SH --> GR
-    AN --> SP
+    BE --> DB[("Heroku PostgreSQL 18.4\n+ PostGIS 3.6\n(External managed RDS)")]
 
-    SP --> DB[(Heroku PostgreSQL + PostGIS)]
-    GR --> DB
+    subgraph Backend_Modules["Backend Modules"]
+        BE --> Study["Study Area Module\nGET /api/v1/study-areas"]
+        BE --> Scenario["Scenario Module\nGET scenarios · zones · impact"]
+        BE --> Routing["Routing Module\nPOST snap · route · compare"]
+        BE --> Shelter["Shelter Module\nGET shelters  POST reachability"]
+        BE --> Analysis["Analysis Module\nPOST /api/v1/analysis/compare"]
+        BE --> AImod["AI Module (optional)\nPOST /api/v1/ai/explain"]
+    end
 
-    API -. Optional .-> AI[AI Explanation Provider]
+    Routing --> GraphCache["In-Memory Graph Cache\n11,940 nodes · 29,448 arcs\n(TypeScript Dijkstra)"]
+    GraphCache --> DB
+
+    AImod -. "Optional" .-> DO["DigitalOcean\nGPT-OSS 120B Inference\n+ Deterministic Fallback"]
 ```
 
-### Architecture principles
+### Key architectural decisions
 
-- Modular monolith backend.
-- Shared API contracts.
-- Deterministic analysis.
-- Spatial queries in PostGIS.
-- Graph routing in TypeScript.
-- External managed PostgreSQL.
-- Independent frontend and backend containers.
+| Decision | Rationale |
+|---|---|
+| Modular monolith backend | Simpler ops; no inter-service network overhead for the routing–flood integration |
+| In-memory graph cache | Dijkstra requires random adjacency access; loading from DB per request would be prohibitively slow |
+| PostGIS for intersection | The spatial index on `road_edges.geom` and `flood_zones.geom` makes ST_Intersects efficient even for 29 K arcs |
+| nginx as API proxy | Single public port; no Ingress controller required with the NLB approach |
+| External Heroku DB | Heroku-managed PostgreSQL + PostGIS avoids running a stateful set inside EKS |
+| AI is optional | Routing correctness cannot depend on an external inference provider |
 
 ---
 
-## 8. Geospatial Data Pipeline
+## Data & Methodology
 
-The road network is constructed from a bounded OpenStreetMap extract.
+### Road network
+
+Source: OpenStreetMap PBF extract, bounded to `lon 68.80–68.97, lat 27.63–27.79` (Sukkur/Rohri study area).
+
+A two-pass Python osmium parser (`scripts/geospatial/build_road_graph.py`) filters highway features, resolves topology, assigns node IDs and generates directed arcs respecting one-way tags. A bulk PostgreSQL/PostGIS importer (`app/backend/scripts/import_road_graph.mjs`) loads the result into the `road_nodes` and `road_edges` tables. A topology validator (`app/backend/scripts/validate_graph.mjs`) runs 18 structural checks and confirms the graph before it is used.
+
+| Metric | Value |
+|---|---|
+| Dataset version | `sukkur-osm-2026-10-v1` |
+| DB size after import | 30.6 MB (+14.2 MB for road data) |
+| Topology checks | 18/18 PASSED |
+| Connected components | 16 (largest 99.5% of nodes) |
+| Isolated nodes | 0 |
+
+### Flood scenarios
+
+Three flood scenarios are seeded in the database as PostGIS geometries (four zones across three scenarios). They are hypothetical polygon extents designed to test localized, corridor-based and wide-area disruption patterns. They do not represent actual flood extents, forecast data, or historical events.
+
+| Scenario | Zones | Polygon type |
+|---|---|---|
+| A — Localized Flood | 1 | Smaller upstream extent |
+| B — Bridge Corridor Flood | 1 | Corridor along the Indus crossing area |
+| C — Wide Flood Disruption | 2 | Larger multi-zone inundation |
+
+### Shelter data
+
+The live database has **zero verified shelter records**. The shelter directory shows an honest empty state in production. Importing shelter locations requires verified source data with confirmed coordinates, names and provenance — none of which have been independently validated at this stage.
+
+A development-only demo mode (`SHELTER_DEMO=true`, refused in production) provides four in-memory hypothetical fixture destinations for demonstration of the reachability analysis logic. These are explicitly labeled as hypothetical in every API response and UI surface.
+
+### Important disclaimers
+
+> ATLAS is a **scenario analysis prototype**, not a real-time flood forecasting system.
+>
+> Simulated road closures do not establish real-world road impassability.
+>
+> Modeled route reachability does not guarantee a physically safe path.
+>
+> Shelter candidates are demonstration destinations. Capacity, operational status and safety are unknown.
+>
+> This tool has no endorsement from emergency authorities, government agencies or disaster management bodies.
+
+---
+
+## Tech Stack
+
+### Frontend
+
+| Technology | Version | Role |
+|---|---|---|
+| React | 19 | UI framework |
+| Vite | 6 | Build tool and dev server |
+| TypeScript | 5.x | Type safety |
+| Tailwind CSS | 4 | Utility-first styling |
+| MapLibre GL JS | 6.14 | Interactive vector map |
+| TanStack Query | 5 | Server-state caching, versioned query keys |
+| Zustand | 5 | Client interaction state |
+| Lucide React | 0.468 | Icon library (no emojis in UI) |
+| Playwright | 1.64 | Browser E2E testing |
+| Vitest | — | Unit testing |
+| OpenFreeMap | — | Vector tile provider (Liberty + Dark styles) |
+
+### Backend
+
+| Technology | Version | Role |
+|---|---|---|
+| Node.js | 22 LTS | Runtime |
+| Fastify | 5 | HTTP server |
+| TypeScript | 5.x | Type safety |
+| Zod | 3 | Schema validation at API boundaries |
+| Drizzle ORM | 0.45 | Typed schema and queries |
+| pg | 8.23 | PostgreSQL driver (pooled, TLS) |
+| Vitest | — | Test runner |
+
+### Geospatial
+
+| Technology | Role |
+|---|---|
+| PostgreSQL 18.4 | Primary data store |
+| PostGIS 3.6 | Spatial queries — ST_Intersects, KNN snap, GeoJSON export |
+| GiST indexes | Accelerate spatial queries on road and zone geometries |
+| EPSG:4326 | All geometries stored in WGS84 |
+| OpenStreetMap | Road source data (ODbL license) |
+| osmium-tool / Python | OSM PBF two-pass parser |
+| TypeScript Dijkstra + binary min-heap | In-memory shortest-path routing |
+
+### Cloud & DevOps
+
+| Technology | Role |
+|---|---|
+| AWS EKS | Kubernetes cluster (`flood-digital-twin-eks`, 1.36) |
+| Amazon ECR | Container image registry |
+| AWS Network Load Balancer | Public internet endpoint |
+| Terraform ≥ 1.5 | Infrastructure as code (VPC, ECR, EKS) |
+| Kubernetes | Namespace, deployments, services, HPA, PDB, ConfigMap |
+| Docker | Frontend nginx + backend Node.js containers |
+| GitHub Actions | CI/CD — build, push, deploy, smoke test |
+| Heroku PostgreSQL | Externally managed PostGIS instance (RDS-backed) |
+
+### AI (optional)
+
+| Technology | Role |
+|---|---|
+| DigitalOcean Inference | GPT-OSS 120B — natural language explanation only |
+| Deterministic fallback | Always available; AI failure does not affect routing |
+
+---
+
+## Cloud Deployment & CI/CD
 
 ```mermaid
 flowchart LR
-    A[OSM Extract] --> B[Road Filtering]
-    B --> C[Topology Processing]
-    C --> D[Directed Nodes and Arcs]
-    D --> E[PostGIS Import]
-    E --> F[Graph Validation]
-    F --> G[Versioned Dataset]
+    DEV["Developer push\nmain branch"] --> GHA
+
+    subgraph GHA["GitHub Actions — deploy.yaml"]
+        TF["Terraform apply\n(VPC · ECR · EKS)"]
+        BUILD["Docker build\n@flood/shared + frontend\n@flood/shared + backend"]
+        PUSH["Push to ECR\nSHA-tagged images"]
+        DEPLOY["kubectl apply\nk8s/*.yaml"]
+        ROLLOUT["Rollout wait\nReadiness probe /ready"]
+        VERIFY["Smoke test\nHTTP 200 on public URL"]
+        TF --> BUILD --> PUSH --> DEPLOY --> ROLLOUT --> VERIFY
+    end
+
+    GHA --> EKS
+
+    subgraph EKS["AWS EKS — ap-southeast-2"]
+        NS["Namespace: flood-digital-twin"]
+        FE_D["flood-frontend\n(nginx, port 80)\nNLB Service"]
+        BE_D["flood-backend\n(Node.js, port 3001)\nClusterIP Service"]
+        CM["ConfigMap: flood-config\nNODE_ENV · HOST · PORT"]
+        SECRET["Secret: flood-secrets\nDATABASE_URL"]
+        FE_D --> BE_D
+        BE_D --> CM
+        BE_D --> SECRET
+    end
+
+    FE_D --> PUB["Public URL\nNetwork Load Balancer"]
+    BE_D --> HDB[("Heroku PostGIS\n(external)")]
 ```
 
-### Road representation
+### Infrastructure notes
 
-A road network consists of:
-
-**Nodes:** Graph intersections or endpoints.
-
-**Directed arcs:** Traversable connections between nodes.
-
-**Physical segments:** Road geometry that may correspond to one or more directed arcs.
-
-For a bidirectional physical segment, two directed arcs can represent opposite travel directions.
-
-For a one-way segment, only the permitted direction is represented.
-
-### Data quality
-
-The importer must account for:
-
-- Road connectivity.
-- One-way restrictions.
-- Road intersections.
-- Bridges and tunnels.
-- Duplicate segments.
-- Invalid geometry.
-- Dataset versioning.
+- **Terraform state** is stored in S3 (key: `flood-digital-twin/terraform.tfstate`). The S3 bucket is versioned with SSE-S3 encryption.
+- **AWS credentials** (`AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY`) are GitHub repository secrets — encrypted at rest and masked in logs. They are never written to build outputs.
+- **Database credentials** (`DATABASE_URL`) are injected as a Kubernetes secret created by CI from the `DATABASE_URL` GitHub secret. They are never present in tracked files.
+- **Backend readiness** (`/ready`) waits for the in-memory graph cache to warm. On cold start, `server.ts` triggers a background graph load after `listen()` completes. Kubernetes uses a longer initial delay for the readiness probe to account for the ~100 s Heroku graph load time.
+- **Frontend nginx** reverse-proxies `/api/`, `/health`, and `/ready` to the backend ClusterIP service. This avoids a separate ingress controller.
+- **CI pipeline** validated by execution: AWS infrastructure provisioned, ECR images built and pushed, Kubernetes namespace and secret applied, rollout waited, and public URL verified with HTTP 200.
 
 ---
 
-## 9. Flood Simulation Methodology
+## Application Screenshots
 
-Flood scenarios are represented as valid geospatial polygons.
+The following screenshots were taken from the running local production preview (Playwright browser, desktop 1440×900 and mobile 390×844) and are present in `app/frontend/artifacts/`.
 
-A physical road segment is considered affected when it intersects a scenario polygon.
+### Desktop — Rerouting Scenario (Dark Theme)
 
-The primary spatial operation is:
+![Desktop dark mode showing baseline and rerouted scenario routes](app/frontend/artifacts/desktop-dark-reroute.png)
 
-```sql
-SELECT DISTINCT
-    physical_segment_id
-FROM road_edges
-WHERE ST_Intersects(
-    road_edges.geom,
-    :flood_polygon
-);
-```
+### Desktop — Rerouting Scenario (Light Theme)
 
-The SQL above illustrates the spatial operation; actual queries must use the implemented schema and parameterized values.
+![Desktop light mode showing baseline and rerouted scenario routes](app/frontend/artifacts/desktop-light-reroute.png)
 
-### Closure rule
+### Desktop — Unreachable Scenario (Dark Theme)
 
-When a physical segment is affected:
+![Desktop dark mode showing unreachable route outcome](app/frontend/artifacts/desktop-dark-unreachable.png)
 
-1. Identify its physical segment ID.
-2. Find all associated directed arcs.
-3. Add those arcs to the scenario's blocked set.
-4. Exclude those arcs from routing.
-5. Preserve the original base graph.
+### Mobile — Rerouting Scenario (Light Theme)
 
-This rule is a modeling assumption for hypothetical scenarios, not a validated real-world passability assessment.
+![Mobile light mode showing rerouting demo at 390×844](app/frontend/artifacts/mobile-light-reroute.png)
+
+### Mobile — Rerouting Scenario (Dark Theme)
+
+![Mobile dark mode showing rerouting demo at 390×844](app/frontend/artifacts/mobile-dark-reroute.png)
 
 ---
 
-## 10. Shortest-Path Algorithm
-
-The routing engine uses Dijkstra's algorithm with nonnegative road-length weights.
-
-### Baseline route
-
-Calculate the shortest path through the complete permitted road graph.
-
-### Scenario route
-
-Calculate the shortest path after excluding arcs affected by the selected simulated flood polygon.
-
-### Algorithm outline
-
-```text id="5e6yxe"
-function shortestPath(graph, start, destination, blockedArcs):
-
-    initialize distances to infinity
-    distance[start] = 0
-
-    create min-priority queue
-    insert start
-
-    while queue is not empty:
-
-        current = extract minimum
-
-        if current is destination:
-            reconstruct path
-
-        for each outgoing arc:
-
-            if arc is blocked:
-                continue
-
-            candidate = distance[current] + arc.length
-
-            if candidate improves distance:
-                update distance
-                remember predecessor
-                push updated candidate
-
-    return unreachable
-```
-
-### Complexity
-
-With an adjacency list and binary heap, the standard complexity is:
-
-\[
-O((V+E)\log V)
-\]
-
-Where:
-
-- \(V\) = graph vertices.
-- \(E\) = directed graph arcs.
-
-### Important invariant
-
-Removing road arcs cannot produce a shorter optimal route between the same graph nodes when weights are unchanged and nonnegative.
-
-This property is included in the routing verification strategy.
-
----
-
-## 11. Database Design
-
-The planned core entities include:
-
-| Entity | Responsibility |
-|---|---|
-| `dataset_versions` | Imported dataset metadata |
-| `study_areas` | Geographic study regions |
-| `road_nodes` | Graph vertices |
-| `road_edges` | Directed road arcs |
-| `flood_scenarios` | Scenario metadata |
-| `flood_zones` | Simulated polygon geometries |
-| `shelters` | Shelter candidates and attributes |
-| `analysis_runs` | Optional analysis history |
-
-### Spatial considerations
-
-- EPSG:4326 geometry storage.
-- GiST spatial indexes.
-- Meter-based routing weights.
-- Dataset-version consistency.
-- Parameterized queries.
-- Directed-graph integrity.
-
-Detailed schema: `docs/06-DATABASE-SCHEMA.md`.
-
----
-
-## 12. API Overview
-
-All application endpoints use the `/api/v1` prefix.
-
-| Method | Endpoint | Purpose |
-|---|---|---|
-| GET | `/api/v1/study-areas` | Available study areas |
-| GET | `/api/v1/study-areas/:id/roads` | Road network GeoJSON |
-| GET | `/api/v1/study-areas/:id/scenarios` | Available scenarios |
-| GET | `/api/v1/scenarios/:id/zones` | Scenario flood polygons |
-| GET | `/api/v1/scenarios/:id/impact` | Affected road metrics |
-| POST | `/api/v1/routing/snap` | Snap point to graph |
-| POST | `/api/v1/routing/route` | Calculate route |
-| POST | `/api/v1/routing/compare` | Compare baseline and scenario |
-| GET | `/api/v1/study-areas/:id/shelters` | Shelter candidates |
-| POST | `/api/v1/shelters/reachability` | Shelter connectivity |
-| GET | `/api/v1/study-areas/:id/summary` | Study-area metrics |
-| GET | `/api/v1/data/provenance` | Dataset attribution |
-
-Health endpoints:
-
-- `GET /health`
-- `GET /ready`
-
-The complete contract is defined in `docs/10-API-CONTRACT.md`.
-
----
-
-## 13. User Interface
-
-The application follows the **ATLAS — Geospatial Operations Console** design system.
-
-### Desktop workspace
-
-```text id="5u4v73"
-┌──────────────────────────────────────────────────────────────┐
-│ Flood Digital Twin                            Status / Info  │
-├──────────────┬───────────────────────────┬───────────────────┤
-│              │                           │                   │
-│ SCENARIO LAB │                           │ IMPACT INSPECTOR  │
-│              │                           │                   │
-│ Study Area   │                           │ Road Impact       │
-│ Scenario     │       INTERACTIVE         │ Route Comparison  │
-│ Route Inputs │          MAP              │ Shelter Access    │
-│ Controls     │                           │ Metrics           │
-│              │                           │                   │
-├──────────────┴───────────────────────────┴───────────────────┤
-│ Dataset Version  |  Simulated Scenario  |  Data Attribution │
-└──────────────────────────────────────────────────────────────┘
-```
-
-### Design principles
-
-- Map-first layout.
-- Clear visual hierarchy.
-- Professional geographic interface.
-- Consistent Lucide icons.
-- No emojis in application UI.
-- Accessible controls.
-- Responsive layouts.
-- Real metrics only.
-- Visible simulated-data disclaimer.
-
-Detailed design specification: `docs/05-UI-UX-DESIGN.md`.
-
----
-
-## 14. Repository Structure
-
-The intended monorepo structure is:
-
-```text id="cm2vpx"
-flood-digital-twin/
-├── app/
-│   ├── frontend/
-│   │   └── ...
-│   └── backend/
-│       └── ...
-│
-├── packages/
-│   └── shared/
-│       └── ...
-│
-├── terraform/
-├── k8s/
-│
-├── .github/
-│   └── workflows/
-│
-├── docs/
-│   ├── 01-PROBLEM-ANALYSIS.md
-│   ├── 02-PRD.md
-│   ├── 03-TRD.md
-│   ├── 04-SYSTEM-ARCHITECTURE.md
-│   ├── 05-UI-UX-DESIGN.md
-│   ├── 06-DATABASE-SCHEMA.md
-│   ├── 07-GEOSPATIAL-DATA-PLAN.md
-│   ├── 08-FLOOD-SIMULATION-ENGINE.md
-│   ├── 09-ROUTING-ALGORITHMS.md
-│   ├── 10-API-CONTRACT.md
-│   ├── 11-AI-INTEGRATION.md
-│   ├── 12-IMPLEMENTATION-PLAN.md
-│   ├── 13-TESTING-PLAN.md
-│   ├── 14-DEVOPS-DEPLOYMENT.md
-│   ├── 15-DEMO-PRESENTATION.md
-│   └── 16-TASK-TRACKER.md
-│
-├── .ai/
-│   ├── CURRENT-STATE.md
-│   ├── HANDOFF.md
-│   ├── DECISIONS.md
-│   └── KNOWN-ISSUES.md
-│
-├── AGENTS.md
-├── README.md
-├── package.json
-└── pnpm-workspace.yaml
-```
-
-Actual infrastructure paths may differ depending on the existing configuration being reused.
-
----
-
-## 15. Local Development
+## Local Development
 
 ### Prerequisites
 
-- Node.js 22 LTS (22.12 or newer within major 22).
-- pnpm 10.30.1 (pinned in `package.json`).
-- PostgreSQL with PostGIS is needed for subsequent database tasks, not foundation startup.
-- Git.
-- Required environment variables.
+- **Node.js** 22 LTS
+- **pnpm** 10.30.1 (pinned — see below)
+- A PostgreSQL/PostGIS database with the schema applied (for database-dependent features)
+- Git
 
 ### Installation
 
-From the repository root:
-
 ```bash
-pnpm install
+# Install all workspace dependencies
+npx --yes pnpm@10.30.1 -- pnpm install
 ```
+
+> If the system pnpm launcher cannot resolve the pinned version, use the `npx` runner prefix shown above for all commands.
 
 ### Environment setup
 
-Defaults start the foundation without environment files or credentials. To customize,
-copy `app/backend/.env.example` to `app/backend/.env` and
-`app/frontend/.env.example` to `app/frontend/.env`.
-Backend variables:
+```bash
+# Backend — copy and fill in your values
+cp app/backend/.env.example app/backend/.env
 
-```dotenv
-DATABASE_URL=
-NODE_ENV=development
-HOST=0.0.0.0
-PORT=3001
-CORS_ORIGIN=http://localhost:5173
-LOG_LEVEL=info
+# Frontend — defaults work without changes for local dev
+cp app/frontend/.env.example app/frontend/.env
 ```
 
-Never commit real credentials.
+**Backend environment variables (names only — never commit real values):**
 
-Frontend configuration is public: `VITE_API_BASE_URL=/api/v1` uses Vite's local
-proxy to `http://127.0.0.1:3001`. An absolute HTTP(S) URL ending in `/api/v1`
-is also supported. If changing the backend port, update the local proxy target in
-`app/frontend/vite.config.ts`. Environment files load from each package directory.
+| Variable | Purpose |
+|---|---|
+| `DATABASE_URL` | PostgreSQL connection string (required for all DB features) |
+| `NODE_ENV` | `development` / `production` / `test` |
+| `HOST` | Bind address (default `0.0.0.0`) |
+| `PORT` | Listening port (default `3001`) |
+| `CORS_ORIGIN` | Allowed CORS origin |
+| `LOG_LEVEL` | Fastify log level |
+| `SHELTER_DEMO` | `true` enables in-memory demo fixtures (refused in production) |
 
-### Development
-
-Run both applications and the shared-schema watcher:
+### Development servers
 
 ```bash
-pnpm dev
+# Run shared watcher + backend (port 3001) + frontend (port 5173)
+npx --yes pnpm@10.30.1 -- pnpm dev
 ```
 
-Open `http://localhost:5173`. The **Service connection** panel fetches
-`/api/v1/status` through the proxy and has a retry action. No map or analytical
-results are implemented yet.
-
-Backend probes: `http://localhost:3001/health` returns 200 without credentials;
-`http://localhost:3001/ready` intentionally returns 503 while PostgreSQL,
-dataset and graph initialization remain unimplemented. DATABASE_URL is validated
-but no connection is opened. Database credentials alone do not imply readiness.
+Frontend proxies `/api/v1`, `/health`, and `/ready` to the backend automatically.
 
 ### Build
 
 ```bash
-pnpm build
+npx --yes pnpm@10.30.1 -- pnpm build
 ```
 
 ### Tests
 
 ```bash
-pnpm test
+# All packages
+npx --yes pnpm@10.30.1 -- pnpm test
+
+# Backend only
+npx --yes pnpm@10.30.1 -- pnpm --filter @flood/backend test
+
+# Frontend only
+npx --yes pnpm@10.30.1 -- pnpm --filter @flood/frontend test
 ```
 
-Run `pnpm typecheck` for all packages. Builds run in dependency order and output
-to `packages/shared/dist`, `app/backend/dist`, and `app/frontend/dist`.
-Start the compiled backend with `pnpm --filter @flood/backend start`.
-`pnpm --filter @flood/frontend preview` previews the static build; it is not a
-production web server. Production hosting must route `/api/v1`, `/health`, and
-`/ready` to the backend or provide a build-time public API URL.
+### Type checking
 
-If the system pnpm launcher cannot switch to the pinned version, use
-`npm exec --yes --package=pnpm@10.30.1 -- pnpm install` and the same prefix for
-workspace commands. This uses the official npm package without changing the global installation.
-
-### Geospatial dataset
-
-Database migrations and OSM import are separate setup steps.
-
-Use the verified migration and import commands documented after those scripts are implemented.
-
-Do not run destructive database operations against the hosted database.
-
----
-
-## 16. AWS Deployment
-
-The preferred deployment architecture is:
-
-```mermaid
-flowchart TD
-    GH[GitHub Repository] --> CI[GitHub Actions]
-    CI --> ECR[Amazon ECR]
-    ECR --> EKS[AWS EKS]
-
-    subgraph Kubernetes
-        FE[Frontend Container]
-        BE[Backend Container]
-    end
-
-    EKS --> FE
-    EKS --> BE
-    FE --> BE
-    BE --> PG[(Heroku PostgreSQL + PostGIS)]
-
-    USER[Browser] --> LB[Public Ingress / Load Balancer]
-    LB --> FE
-    LB --> BE
+```bash
+npx --yes pnpm@10.30.1 -- pnpm typecheck
 ```
 
-### Infrastructure strategy
+### Database & geospatial setup
 
-The team already has Terraform and Kubernetes configuration tested on another project.
+> These steps require `DATABASE_URL` and are not needed for the frontend to start.
 
-Rather than rebuilding everything, the infrastructure workstream will:
+```bash
+# Apply the schema migration
+npx --yes pnpm@10.30.1 -- pnpm --filter @flood/backend run db:migrate
 
-1. Audit the existing configuration.
-2. Identify reusable resources.
-3. Update application-specific values.
-4. Validate Terraform.
-5. Review the Terraform plan.
-6. Adapt Docker and Kubernetes manifests.
-7. Configure CI/CD.
-8. Deploy the application.
-9. Run public smoke tests.
+# Inspect the database state
+npx --yes pnpm@10.30.1 -- pnpm --filter @flood/backend run db:inspect
 
-### Security
+# Import the Sukkur/Rohri road graph (requires processed dataset)
+npx --yes pnpm@10.30.1 -- pnpm --filter @flood/backend run geo:import
 
-- Secrets injected at runtime.
-- No credentials in Git.
-- Parameterized SQL.
-- Validated environment configuration.
-- Restricted AWS permissions.
-- Secure database connectivity.
+# Validate the imported graph topology
+npx --yes pnpm@10.30.1 -- pnpm --filter @flood/backend run geo:validate
 
-### Deployment status
+# Seed the three hypothetical flood scenarios
+npx --yes pnpm@10.30.1 -- pnpm --filter @flood/backend run geo:seed
+```
 
-**Public URL:** `[ADD VERIFIED DEMO URL]`
-
-**AWS region:** `[ADD ACTUAL REGION]`
-
-**EKS cluster:** `[ADD ACTUAL CLUSTER]`
-
-**Deployment verification:** Pending.
-
-Do not replace these placeholders until deployment is working.
+> The OSM PBF preprocessing step uses `scripts/geospatial/build_road_graph.py` and takes approximately 13 minutes on a standard laptop. The Sukkur/Rohri OSM extract is not included in the repository.
 
 ---
 
-## 17. Testing Strategy
+## Testing
 
-The project uses a layered verification approach.
+### Test structure
 
-### Unit tests
+| File | Category | Count |
+|---|---|---|
+| `app/backend/tests/foundation.test.ts` | Server startup, health endpoints | 16 |
+| `app/backend/tests/database.test.ts` | PostgreSQL/PostGIS connectivity, schema | 18 |
+| `app/backend/tests/graph.test.ts` | Graph loader, topology, connectivity | ~15 |
+| `app/backend/tests/routing.test.ts` | MinHeap, Dijkstra, snapping, real graph | 36 |
+| `app/backend/tests/flood.test.ts` | PostGIS intersection, scenario API | 30 |
+| `app/backend/tests/accessibility.test.ts` | Shelter reachability, comparison | 16 |
+| `app/backend/tests/ai.test.ts` | AI service unit tests, fallback | — |
+| `app/frontend/src/*.test.ts` | API client, map layers, theme, workspace | 38 |
+| Browser E2E | Playwright — desktop + mobile, Light/Dark | Passed |
 
-- Dijkstra correctness.
-- Binary heap.
-- Directed graph behavior.
-- One-way restrictions.
-- Unreachable routes.
-- Route reconstruction.
+### Verified test results
 
-### Integration tests
+```
+Backend:  136/136 tests PASSED
+Frontend:  38/38  tests PASSED
+TypeScript typecheck (all packages): PASSED
+Production build (frontend + backend): PASSED
+Browser E2E (Playwright): PASSED — zero page errors
+```
 
-- PostGIS intersections.
-- Affected physical segment deduplication.
-- Blocked arc generation.
-- Dataset-version consistency.
-- Shelter reachability.
-- API validation.
+### Key routing invariants verified by tests
 
-### End-to-end tests
+1. Blocked arcs never appear in a computed route.
+2. Scenario route distance cannot be shorter than baseline distance.
+3. `UNREACHABLE` is returned explicitly — no straight-line fallback.
+4. One-way restrictions are respected in both directions.
+5. Graph node IDs remain strings throughout (BIGINT safety).
 
-- Load study area.
-- Select route endpoints.
-- Display baseline route.
-- Activate simulated scenario.
-- Display affected roads.
-- Compare scenario route.
-- Inspect shelter reachability.
+---
 
-### Deployment tests
+## Limitations & Responsible Use
 
-- Frontend accessibility.
-- Backend health.
-- Database connectivity.
-- API responses.
-- Core demo workflow.
-
-### Test status
-
-| Test suite | Result |
+| Limitation | Detail |
 |---|---|
-| Unit tests | Not yet verified |
-| Spatial integration tests | Not yet verified |
-| API tests | Not yet verified |
-| Cypress E2E | Not yet verified |
-| Deployment smoke tests | Not yet verified |
-
-Update this table only with actual test results.
-
----
-
-## 18. Demo Walkthrough
-
-The intended live demonstration follows this sequence.
-
-### Step 1 — Explore the map
-
-Display the real road network in the selected study area.
-
-### Step 2 — Calculate a baseline route
-
-Choose an origin and destination and calculate the shortest graph path.
-
-### Step 3 — Activate a flood scenario
-
-Display a hypothetical flood polygon over the map.
-
-### Step 4 — Inspect affected roads
-
-Highlight physical road segments intersecting the polygon.
-
-### Step 5 — Compare routes
-
-Show the scenario-aware shortest path after affected arcs are removed.
-
-### Step 6 — Analyze shelters
-
-Display shelter candidates and their scenario-dependent reachability.
-
-### Step 7 — Compare scenarios
-
-Switch between predefined simulations and observe changes.
-
-The final origin, destination and scenarios must be pre-verified so the demo is reproducible.
+| Hypothetical flood scenarios | The three flood polygons are invented extents, not forecasts, historical records or government flood maps |
+| No real-time data | The application has no connection to live hydrological sensors, weather feeds or emergency systems |
+| OSM road completeness | The road graph reflects OSM data quality at the time of the extract; unmapped roads, private roads and temporary closures are absent |
+| No shelter inventory | Zero verified shelter records exist in the live database; the shelter panel shows an honest empty state |
+| Network reachability ≠ safety | A graph-connected route does not imply the road is physically passable, safe, or usable during an actual flood |
+| No traffic or capacity modeling | Travel times, congestion and road capacity are not modeled |
+| No pedestrian or multi-modal routing | Analysis covers road vehicles only |
+| No official endorsement | ATLAS has no endorsement from emergency services, government bodies or disaster management authorities |
+| AI explanation uncertainty | Natural-language explanations are optional and supplementary; they cannot alter or override deterministic metrics |
 
 ---
 
-## 19. Screenshots
+## Future Roadmap
 
-Screenshots will be added after the interface has been implemented and visually verified.
+The following capabilities are planned but not yet implemented:
 
-### Main Workspace
-
-`[ADD ACTUAL WORKSPACE SCREENSHOT]`
-
-### Flood Scenario Analysis
-
-`[ADD ACTUAL SCENARIO SCREENSHOT]`
-
-### Route Comparison
-
-`[ADD ACTUAL ROUTING SCREENSHOT]`
-
-Do not use AI-generated UI mockups as evidence of a working application.
+- **Verified shelter dataset** — import a source-verified shelter inventory with coordinates, capacity and operational status
+- **Live hydrological feeds** — connect to real-time river gauge or satellite flood extent data
+- **Flood depth and duration modeling** — not all intersections imply impassability; depth thresholds would make closures more realistic
+- **Additional study areas** — expand beyond Sukkur/Rohri to cover more at-risk urban regions
+- **HTTPS / TLS termination** — the current NLB serves HTTP; TLS termination needs a certificate and ACM/ingress configuration
+- **Multi-modal routing** — include walking, cycling and boat routes for more comprehensive accessibility analysis
+- **Road capacity and traffic** — model congestion on surviving roads after mass detour
+- **Temporal scenarios** — compare accessibility at different flood stages (rising, peak, receding)
+- **Broader accessibility audit** — WCAG AA compliance review and screen-reader testing
 
 ---
 
-## 20. Data Sources & Attribution
+## Team & Acknowledgments
 
-### OpenStreetMap
+**Project:** Flood Digital Twin — ATLAS  
+**Challenge:** CL-01 — Flood Risk & Evacuation Planner  
+**Development model:** AI-assisted, two-developer hackathon (24 hours)
 
-Road network data is derived from OpenStreetMap contributors.
+**Developer A** — Application engineering: geospatial pipeline, PostGIS schema, TypeScript Dijkstra engine, routing API, flood simulation service, shelter accessibility, frontend UI, tests
 
-**Attribution:** © OpenStreetMap contributors.
-
-OpenStreetMap data is available under the Open Database License (ODbL).
-
-Source: https://www.openstreetmap.org/copyright
-
-### Map tiles
-
-The map tile provider and required attribution must be verified during implementation.
-
-### Flood polygons
-
-The flood scenarios are hypothetical and created for demonstration and analytical testing.
-
-They are not validated flood forecasts.
-
-### Shelter data
-
-Shelter records must carry appropriate provenance and verification status.
-
-A candidate's graph reachability does not establish that it is operational or safe.
+**Developer B** — Infrastructure engineering: Terraform (VPC/ECR/EKS), Kubernetes manifests, Docker builds, GitHub Actions CI/CD pipeline, deployment validation
 
 ---
 
-## 21. Limitations
+**Data Attribution**
 
-The initial prototype has several intentional limitations:
+Road network data: © [OpenStreetMap contributors](https://www.openstreetmap.org/copyright) — licensed under the [Open Database License (ODbL)](https://opendatacommons.org/licenses/odbl/).
 
-- It covers a bounded study area.
-- Flood polygons are hypothetical.
-- Road closures follow a simplified spatial-intersection rule.
-- No real-time flood sensor integration is assumed.
-- No hydrological forecasting model is included.
-- Road-network completeness depends on source data quality.
-- Shelter availability and safety are not guaranteed.
-- Travel-time modeling may be less reliable than distance-based routing.
-- Public deployment depends on verified cloud infrastructure.
-
-These limitations are part of responsible scenario modeling.
+Map tiles: [OpenFreeMap](https://openfreemap.org/) — Liberty and Dark styles.
 
 ---
 
-## 22. Future Improvements
+## Final Note
 
-Potential future extensions include:
+ATLAS demonstrates that geospatial route analysis is tractable without commercial GIS licensing or real-time data infrastructure. The core contribution is connecting PostGIS spatial intersection to directed graph routing in a way that produces honest, deterministic, reproducible outputs — including explicit unreachable states — and presenting them in an interface that makes the before/after comparison immediately legible.
 
-- Integration with authoritative flood forecasts.
-- Time-dependent road closures.
-- Traffic-aware routing.
-- Accessibility-sensitive route analysis.
-- Population exposure analysis.
-- Multi-region datasets.
-- Historical scenario comparison.
-- Verified emergency facility datasets.
-- Improved network resilience metrics.
-- Collaborative scenario planning.
-
-These are future directions, not current feature claims.
+**[Open the live demo →](http://acc8e62b434c84a26ac87f22b9c0a716-aad1bc7f4f666153.elb.ap-southeast-2.amazonaws.com/)**
 
 ---
 
-## 23. Team & Responsibilities
-
-### Developer A — Application Engineering
-
-Responsible for:
-
-- Frontend.
-- Backend.
-- PostGIS schema.
-- Geospatial data import.
-- Flood simulation.
-- Routing algorithms.
-- Shelter analysis.
-- UI integration.
-
-### Developer B — Cloud & Infrastructure
-
-Responsible for:
-
-- Terraform adaptation.
-- Kubernetes adaptation.
-- Docker.
-- AWS EKS/ECR.
-- GitHub Actions.
-- Public deployment.
-- Infrastructure validation.
-
-Both developers contribute to testing, documentation and presentation.
-
-**Team member names:** `[ADD FINAL TEAM DETAILS]`
-
----
-
-## 24. Project Documentation
-
-The repository includes detailed engineering documentation.
-
-| Document | Purpose |
-|---|---|
-| `01-PROBLEM-ANALYSIS.md` | Problem and impact |
-| `02-PRD.md` | Product requirements |
-| `03-TRD.md` | Technical requirements |
-| `04-SYSTEM-ARCHITECTURE.md` | Architecture |
-| `05-UI-UX-DESIGN.md` | Design system |
-| `06-DATABASE-SCHEMA.md` | Data model |
-| `07-GEOSPATIAL-DATA-PLAN.md` | OSM data pipeline |
-| `08-FLOOD-SIMULATION-ENGINE.md` | Spatial impact |
-| `09-ROUTING-ALGORITHMS.md` | Shortest-path routing |
-| `10-API-CONTRACT.md` | REST API specification |
-| `11-AI-INTEGRATION.md` | Optional AI |
-| `12-IMPLEMENTATION-PLAN.md` | Development roadmap |
-| `13-TESTING-PLAN.md` | Quality assurance |
-| `14-DEVOPS-DEPLOYMENT.md` | Infrastructure and deployment |
-| `15-DEMO-PRESENTATION.md` | Demo preparation |
-| `16-TASK-TRACKER.md` | Task management |
-
-Agent workflow files:
-
-- `AGENTS.md`
-- `.ai/CURRENT-STATE.md`
-- `.ai/HANDOFF.md`
-- `.ai/DECISIONS.md`
-- `.ai/KNOWN-ISSUES.md`
-
----
-
-## 25. Hackathon Evaluation Alignment
-
-| Evaluation Area | Project Contribution |
-|---|---|
-| Technical Implementation — 25% | PostGIS, directed graph, Dijkstra, full-stack integration |
-| Problem & Impact — 20% | Road accessibility under hypothetical flood disruptions |
-| Innovation — 20% | Spatial-to-network impact analysis and scenario-aware routing |
-| Usability & Design — 15% | Interactive map-first ATLAS interface |
-| Feasibility — 10% | Bounded study area and deterministic methods |
-| Demo & Presentation — 10% | Reproducible baseline-to-scenario walkthrough |
-
-The strongest demonstration is a working, technically correct route comparison using real roads and simulated closures.
-
----
-
-## 26. Project Links
-
-**GitHub Repository:** `[ADD REPOSITORY URL]`
-
-**Live Application:** `[ADD VERIFIED PUBLIC URL]`
-
-**Demo Video:** `[ADD DEMO VIDEO URL]`
-
-**Presentation:** `[ADD PRESENTATION LINK]`
-
-Only add links that are publicly accessible and verified.
-
----
-
-## 27. Responsible Use
-
-Flood Digital Twin is intended for educational, research and prototype planning scenarios.
-
-Its outputs should not be used as authoritative instructions for emergency response.
-
-Real-world evacuation decisions require current official information, verified road conditions, validated hazard data and guidance from responsible authorities.
-
----
-
-## Closing
-
-**Flood Digital Twin connects geospatial flood scenarios with real road-network analysis to make hypothetical accessibility disruptions easier to explore, compare and understand.**
-
-The core idea is simple:
-
-**When a road network changes, the routes and destinations reachable through it can change too.**
-
----
-
-**Built for CL-01 — Flood Risk & Evacuation Planner.**
+*ATLAS is a hackathon prototype. Its flood scenarios are hypothetical. It does not provide official emergency guidance, real-time flood forecasting, or verified evacuation routes.*
