@@ -33,12 +33,20 @@ export async function registerRoutingRoutes(
   pool: pg.Pool,
 ): Promise<void> {
   // --- POST /api/v1/routing/snap -------------------------------------------
-  app.post('/routing/snap', async (request, reply) => {
+  app.post('/routing/snap', { config: { rateLimit: { max: 120, timeWindow: '1 minute' } } }, async (request, reply) => {
     const parsed = SnapRequestSchema.safeParse(request.body);
     if (!parsed.success) {
+      // API-008 documents 400 INVALID_COORDINATES for invalid map points.
+      // Report an invalid study-area UUID with its own registry code.
+      const invalidFields = new Set(parsed.error.issues.map((issue) => issue.path[0]));
+      const pointInvalid = invalidFields.has('point') || invalidFields.size === 0;
       return reply.code(400).send({
         success: false,
-        error: { code: 'INVALID_ROUTE_REQUEST', message: 'Invalid request body.', details: parsed.error.flatten() },
+        error: {
+          code: pointInvalid ? 'INVALID_COORDINATES' : 'INVALID_STUDY_AREA_ID',
+          message: pointInvalid ? 'The map point is invalid.' : 'Study area ID must be a valid UUID.',
+          details: parsed.error.flatten(),
+        },
         meta: { requestId: request.id },
       });
     }
@@ -56,7 +64,7 @@ export async function registerRoutingRoutes(
   });
 
   // --- POST /api/v1/routing/route ------------------------------------------
-  app.post('/routing/route', async (request, reply) => {
+  app.post('/routing/route', { config: { rateLimit: { max: 60, timeWindow: '1 minute' } } }, async (request, reply) => {
     const parsed = RouteRequestSchema.safeParse(request.body);
     if (!parsed.success) {
       return reply.code(400).send({
@@ -74,7 +82,7 @@ export async function registerRoutingRoutes(
   });
 
   // --- POST /api/v1/routing/compare ----------------------------------------
-  app.post('/routing/compare', async (request, reply) => {
+  app.post('/routing/compare', { config: { rateLimit: { max: 60, timeWindow: '1 minute' } } }, async (request, reply) => {
     const parsed = CompareRequestSchema.safeParse(request.body);
     if (!parsed.success) {
       return reply.code(400).send({

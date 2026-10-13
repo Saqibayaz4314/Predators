@@ -19,6 +19,7 @@
   },
   "dependencies": {
     "@fastify/cors": "^11.1.0",
+    "@fastify/rate-limit": "^11.2.1",
     "@flood/shared": "workspace:*",
     "dotenv": "^16.6.1",
     "drizzle-orm": "^0.45.4",

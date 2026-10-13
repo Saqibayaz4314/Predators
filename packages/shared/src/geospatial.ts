@@ -12,6 +12,18 @@ export const studyAreaSummarySchema = z.object({
 });
 export const studyAreasSchema = z.object({ items: z.array(studyAreaSummarySchema) });
 export const studyAreaDetailSchema = studyAreaSummarySchema.extend({ boundary: multiPolygonSchema, classification: z.literal('scenario-analysis') });
+// API-013 — study-area overview counts. Every count is derived from the active
+// dataset at request time; no hardcoded dashboard metrics.
+export const studyAreaSummaryDataSchema = z.object({
+  studyAreaId: uuidSchema,
+  datasetVersion: z.string(),
+  totalPhysicalRoadSegments: z.number().int().nonnegative(),
+  totalDirectedArcs: z.number().int().nonnegative(),
+  totalGraphNodes: z.number().int().nonnegative(),
+  totalShelterCandidates: z.number().int().nonnegative(),
+  totalSimulatedScenarios: z.number().int().nonnegative(),
+  dataStatus: z.literal('ready'),
+});
 export const roadPropertiesSchema = z.object({ physicalSegmentId: graphIdSchema, roadName: z.string().nullable(), highwayType: z.string().nullable(), isOneWay: z.boolean() });
 export const roadsSchema = z.object({ type: z.literal('FeatureCollection'), features: z.array(z.object({ type: z.literal('Feature'), geometry: lineStringSchema, properties: roadPropertiesSchema })) });
 export const scenarioSummarySchema = z.object({ id: uuidSchema, slug: z.string(), title: z.string(), description: z.string().nullable(), displayOrder: z.number().int(), classification: z.literal('simulated') });
@@ -36,6 +48,7 @@ export const routeSchema = z.discriminatedUnion('status', [
 export const comparisonSchema = z.object({ studyAreaId: uuidSchema, scenarioId: uuidSchema, datasetVersion: z.string(), baseline: routeSchema, scenario: routeSchema, distanceChangeMeters: z.number().nullable(), distanceChangePercent: z.number().nullable(), outcome: z.enum(['unchanged', 'rerouted', 'unreachable', 'baseline_unreachable']) });
 export type StudyArea = z.infer<typeof studyAreaSummarySchema>;
 export type StudyAreaDetail = z.infer<typeof studyAreaDetailSchema>;
+export type StudyAreaSummaryData = z.infer<typeof studyAreaSummaryDataSchema>;
 export type Roads = z.infer<typeof roadsSchema>;
 export type Zones = z.infer<typeof zonesSchema>;
 export type ScenarioSummary = z.infer<typeof scenarioSummarySchema>;

@@ -6,16 +6,21 @@ import { listShelterCandidates, evaluateShelters } from '../modules/shelters/she
 import { compareScenarios } from '../modules/analysis/comparisonService.js';
 
 export async function registerAccessibilityRoutes(app: FastifyInstance, pool: pg.Pool, env: Env) {
-  app.get<{ Params: { id: string } }>('/study-areas/:id/shelters', async (request) => {
-    const id = uuidSchema.parse(request.params.id);
+  app.get<{ Params: { id: string } }>('/study-areas/:id/shelters', async (request, reply) => {
+    const { id } = request.params;
+    if (!uuidSchema.safeParse(id).success) {
+      return reply.code(400).send({ success: false, error: { code: 'INVALID_STUDY_AREA_ID', message: 'Study area ID must be a valid UUID.' }, meta: { requestId: request.id } });
+    }
     const data = await listShelterCandidates(pool, env, id);
     return { success: true, data, meta: { requestId: request.id, datasetVersion: data.datasetVersion } };
   });
-  app.post('/shelters/reachability', async (request) => {
+  // Single-source Dijkstra over the full graph per request.
+  app.post('/shelters/reachability', { config: { rateLimit: { max: 30, timeWindow: '1 minute' } } }, async (request) => {
     const data = await evaluateShelters(pool, env, shelterRequestSchema.parse(request.body));
     return { success: true, data, meta: { requestId: request.id, datasetVersion: data.datasetVersion } };
   });
-  app.post('/analysis/compare', async (request) => {
+  // Heaviest analysis endpoint: per-scenario impact + routes + shelter evaluation.
+  app.post('/analysis/compare', { config: { rateLimit: { max: 30, timeWindow: '1 minute' } } }, async (request) => {
     const data = await compareScenarios(pool, env, analysisRequestSchema.parse(request.body));
     return { success: true, data, meta: { requestId: request.id, datasetVersion: data.datasetVersion } };
   });

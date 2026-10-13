@@ -83,7 +83,7 @@ describe.skipIf(!runIntegration)('AI explanation and provenance integration (SEL
     expect(body.error.code).toBe('SCENARIO_NOT_FOUND');
   });
 
-  it('AI-01: malformed request body returns 400 VALIDATION_ERROR', async () => {
+  it('AI-01: malformed request body returns 400 INVALID_AI_REQUEST', async () => {
     const env = parseEnv({ NODE_ENV: 'test', DATABASE_URL: databaseUrl });
     const app = buildApp(env, pool!);
     const response = await app.inject({
@@ -95,7 +95,7 @@ describe.skipIf(!runIntegration)('AI explanation and provenance integration (SEL
 
     expect(response.statusCode).toBe(400);
     const body = response.json<{ error: { code: string } }>();
-    expect(body.error.code).toBe('VALIDATION_ERROR');
+    expect(body.error.code).toBe('INVALID_AI_REQUEST');
   });
 
   it('API-11: /api/v1/data/provenance returns real dataset provenance', async () => {
