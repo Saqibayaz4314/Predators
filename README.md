@@ -24,6 +24,7 @@ CL-01 · Climate Resilience & Disaster Management · Hackathon Submission
 [![Fastify](https://img.shields.io/badge/Fastify-5-000000?logo=fastify&logoColor=white)](https://fastify.dev/)
 [![AWS EKS](https://img.shields.io/badge/AWS_EKS-Kubernetes_1.36-FF9900?logo=amazonaws&logoColor=white)](https://aws.amazon.com/eks/)
 [![Terraform](https://img.shields.io/badge/Terraform-≥1.5-7B42BC?logo=terraform&logoColor=white)](https://www.terraform.io/)
+[![DigitalOcean](https://img.shields.io/badge/DigitalOcean-Inference_openai--gpt--oss--120b-0080FF?logo=digitalocean&logoColor=white)](https://www.digitalocean.com/)
 
 ---
 
@@ -36,6 +37,7 @@ CL-01 · Climate Resilience & Disaster Management · Hackathon Submission
 - [Core Features](#core-features)
 - [How Flood-Aware Routing Works](#how-flood-aware-routing-works)
 - [System Architecture](#system-architecture)
+  - [AI Explanation Architecture & DigitalOcean Inference Pipeline](#ai-explanation-architecture--digitalocean-inference-pipeline)
 - [Data & Methodology](#data--methodology)
 - [Tech Stack](#tech-stack)
 - [Cloud Deployment & CI/CD](#cloud-deployment--cicd)
@@ -204,7 +206,13 @@ PostGIS independently checks whether each candidate location falls within a simu
 
 ### AI Scenario Explanation (implemented, optional)
 
-A `POST /api/v1/ai/explain` endpoint generates a natural-language explanation of verified deterministic results using a DigitalOcean-hosted language model. The AI module includes: a prompt builder, an output validator, a DigitalOcean provider, and a mandatory deterministic fallback. The AI cannot calculate routes, invent road closure counts, or override numerical results. If the provider call fails, the fallback explanation is returned without interrupting the main application.
+A `POST /api/v1/ai/explain` endpoint generates natural-language situational summaries of verified deterministic results using a DigitalOcean-hosted inference endpoint:
+
+- **Inference Provider:** DigitalOcean Gradient / Serverless Inference (`https://inference.do-ai.run/v1/chat/completions`).
+- **Hosted Model:** `openai-gpt-oss-120b` (120-billion parameter open-weights model).
+- **Strict Grounding:** The prompt builder embeds authoritative metrics directly from PostGIS (`computeScenarioImpact`), Dijkstra (`compareScenarioRoute`), and the shelter engine (`evaluateShelters`). The AI model is strictly prohibited from estimating distances, guessing closure counts, or inventing routes.
+- **Output Validation:** All model outputs pass through a Zod schema validator (`output-validator.ts`) that enforces structured JSON (`summary`, `observations`, `confidence`, `limitations`), verifies script integrity (English / Roman Urdu), and guarantees simulation caveats are preserved.
+- **Deterministic Fallback:** If `DO_GPT_OSS_API_KEY` is omitted, the inference endpoint times out (12 s), or the upstream returns malformed JSON, the backend automatically serves an instant deterministic fallback explanation (`deterministic-fallback.ts`) without disrupting the application or frontend UI.
 
 ### Light / Dark Theme
 
@@ -283,13 +291,14 @@ flowchart TB
         BE --> Routing["Routing Module\nPOST snap · route · compare"]
         BE --> Shelter["Shelter Module\nGET shelters  POST reachability"]
         BE --> Analysis["Analysis Module\nPOST /api/v1/analysis/compare"]
-        BE --> AImod["AI Module (optional)\nPOST /api/v1/ai/explain"]
+        BE --> AImod["AI Explanation Module\nPOST /api/v1/ai/explain"]
     end
 
     Routing --> GraphCache["In-Memory Graph Cache\n11,940 nodes · 29,448 arcs\n(TypeScript Dijkstra)"]
     GraphCache --> DB
 
-    AImod -. "Optional" .-> DO["DigitalOcean\nGPT-OSS 120B Inference\n+ Deterministic Fallback"]
+    AImod -. "DO_GPT_OSS_API_KEY\n(Bearer Auth)" .-> DO["DigitalOcean Serverless Inference\nopenai-gpt-oss-120b (120B params)\nhttps://inference.do-ai.run"]
+    AImod --> Fallback["Deterministic Fallback Engine\n(In-process template generator;\n100% offline availability)"]
 ```
 
 ### Key architectural decisions
@@ -301,7 +310,52 @@ flowchart TB
 | PostGIS for intersection | The spatial index on `road_edges.geom` and `flood_zones.geom` makes ST_Intersects efficient even for 29 K arcs |
 | nginx as API proxy | Single public port; no Ingress controller required with the NLB approach |
 | External Heroku DB | Heroku-managed PostgreSQL + PostGIS avoids running a stateful set inside EKS |
-| AI is optional | Routing correctness cannot depend on an external inference provider |
+| DigitalOcean Hosted Inference | Offloads 120B open-weights model inference to managed cloud GPU endpoints; keeps Node.js backend lightweight |
+| Deterministic fallback guard | Decouples application uptime from LLM availability; routing & analysis work 100% offline or without API keys |
+
+### AI Explanation Architecture & DigitalOcean Inference Pipeline
+
+The AI explanation subsystem provides natural-language situational awareness based strictly on deterministic geospatial findings. It operates as an asynchronous explanation layer completely decoupled from core pathfinding.
+
+```mermaid
+flowchart TD
+    Req["Frontend Client\nPOST /api/v1/ai/explain\n{studyAreaId, scenarioId, originNodeId, destinationNodeId, language}"] --> RouteHandler["Fastify Route Handler\n(/routes/ai.ts)"]
+
+    subgraph Deterministic_Engine["Authoritative Grounding (PostGIS + Dijkstra)"]
+        RouteHandler --> GIS["PostGIS Spatial Intersection\ncomputeScenarioImpact()"]
+        RouteHandler --> ROU["Directed Dijkstra Routing\ncompareScenarioRoute()"]
+        RouteHandler --> SHE["Shelter Accessibility\nevaluateShelters()"]
+        GIS --> MetricPayload["Ground-Truth Context Package\n- Affected physical segments & percentage\n- Baseline vs scenario route distance delta\n- Shelter reachability breakdown\n- Mandatory simulation caveats"]
+        ROU --> MetricPayload
+        SHE --> MetricPayload
+    end
+
+    MetricPayload --> CheckAuth{"DO_GPT_OSS_API_KEY\nconfigured?"}
+
+    subgraph DO_Pipeline["DigitalOcean Hosted Inference Pipeline"]
+        CheckAuth -->|Yes| Prompt["Prompt Builder (prompt-builder.ts)\nInjects strict numbers into JSON prompt\nSystem prompt prohibits metric fabrication"]
+        Prompt --> DO_API["DigitalOcean Serverless Inference\nPOST https://inference.do-ai.run/v1/chat/completions\nModel: openai-gpt-oss-120b | Temperature: 0.2\nTimeout: 12,000 ms | Max Tokens: 1,000"]
+        DO_API --> Validator["Output Validator (output-validator.ts)\nZod schema validation + script checks"]
+        Validator -->|Valid JSON| Resp["AI Explanation Response\n(source: 'digitalocean_gpt_oss_120b')"]
+    end
+
+    subgraph Fallback_Pipeline["Deterministic Fallback Engine"]
+        CheckAuth -->|No / Key Missing| DetFallback["deterministic-fallback.ts\nGenerates structured template report\nZero external dependencies · 100% availability"]
+        DO_API -.->|Timeout / Error 5xx| DetFallback
+        Validator -.->|Schema Validation Failure| DetFallback
+        DetFallback --> FallbackResp["AI Explanation Response\n(source: 'deterministic_fallback')"]
+    end
+
+    Resp --> Client["Frontend Impact Inspector Panel\nNatural-Language Situation Report\n(English / Roman Urdu)"]
+    FallbackResp --> Client
+```
+
+#### Grounding & Hallucination Prevention Rules
+
+1. **Deterministic Metrics as Source of Truth:** The AI engine is never asked to calculate distances, find shortest paths, or detect intersected road segments. All counts are computed first by PostGIS and Dijkstra and injected as read-only context.
+2. **Explicit Zero-Invention Constraint:** The model prompt instructs: *"Never invent numerical figures, road names, or safety assurances. Only explain the provided factual observations."*
+3. **Structured JSON Output:** The model is constrained to return `{ type: "json_object" }` matching the shared TypeScript schema (`summary`, `observations`, `confidence`, `limitations`).
+4. **Resilient Fallback Guarantee:** If the upstream DigitalOcean endpoint is unreachable, unauthenticated, rate-limited, or exceeds the 12-second timeout, the system falls back to `buildFallbackExplanation()`. The core digital twin remains 100% operational.
 
 ---
 
@@ -406,12 +460,14 @@ A development-only demo mode (`SHELTER_DEMO=true`, refused in production) provid
 | GitHub Actions | CI/CD — build, push, deploy, smoke test |
 | Heroku PostgreSQL | Externally managed PostGIS instance (RDS-backed) |
 
-### AI (optional)
+### AI & Natural Language Explanation (optional)
 
-| Technology | Role |
-|---|---|
-| DigitalOcean Inference | GPT-OSS 120B — natural language explanation only |
-| Deterministic fallback | Always available; AI failure does not affect routing |
+| Technology | Role | Details |
+|---|---|---|
+| DigitalOcean Hosted Inference | Serverless LLM Provider | OpenAI-compatible chat completions endpoint (`https://inference.do-ai.run/v1/chat/completions`) |
+| Model: `openai-gpt-oss-120b` | Natural language generation | 120-billion parameter open-weights model; temperature 0.2, max 1,000 output tokens |
+| Deterministic Fallback Engine | Safety fallback mechanism | In-process TypeScript template engine guaranteeing 100% uptime with exact ground-truth metrics |
+| Zod Schema Validation | Output contract enforcement | Strict JSON extraction and schema validation (`output-validator.ts`) before delivering response |
 
 ---
 
@@ -437,15 +493,16 @@ flowchart LR
         NS["Namespace: flood-digital-twin"]
         FE_D["flood-frontend\n(nginx, port 80)\nNLB Service"]
         BE_D["flood-backend\n(Node.js, port 3001)\nClusterIP Service"]
-        CM["ConfigMap: flood-config\nNODE_ENV · HOST · PORT"]
-        SECRET["Secret: flood-secrets\nDATABASE_URL"]
+        CM["ConfigMap: flood-config\nNODE_ENV · HOST · PORT\nDO_GPT_OSS_MODEL · DO_INFERENCE_URL"]
+        SECRET["Secret: flood-secrets\nDATABASE_URL\nDO_GPT_OSS_API_KEY (optional)"]
         FE_D --> BE_D
         BE_D --> CM
         BE_D --> SECRET
     end
 
     FE_D --> PUB["Public URL\nNetwork Load Balancer"]
-    BE_D --> HDB[("Heroku PostGIS\n(external)")]
+    BE_D --> HDB[("Heroku PostGIS\n(external managed)")]
+    BE_D -. "Inference (Bearer token)" .-> DO_EXT[("DigitalOcean Inference\nopenai-gpt-oss-120b")]
 ```
 
 ### Infrastructure notes
@@ -455,6 +512,7 @@ flowchart LR
 - **Database credentials** (`DATABASE_URL`) are injected as a Kubernetes secret created by CI from the `DATABASE_URL` GitHub secret. They are never present in tracked files.
 - **Backend readiness** (`/ready`) waits for the in-memory graph cache to warm. On cold start, `server.ts` triggers a background graph load after `listen()` completes. Kubernetes uses a longer initial delay for the readiness probe to account for the ~100 s Heroku graph load time.
 - **Frontend nginx** reverse-proxies `/api/`, `/health`, and `/ready` to the backend ClusterIP service. This avoids a separate ingress controller.
+- **AI inference credentials** (`DO_GPT_OSS_API_KEY`) can be optionally injected via the Kubernetes `flood-secrets` secret. If omitted, unconfigured, or offline, the backend transparently serves deterministic template summaries without downtime.
 - **CI pipeline** validated by execution: AWS infrastructure provisioned, ECR images built and pushed, Kubernetes namespace and secret applied, rollout waited, and public URL verified with HTTP 200.
 
 ---
@@ -521,9 +579,15 @@ cp app/frontend/.env.example app/frontend/.env
 | `NODE_ENV` | `development` / `production` / `test` |
 | `HOST` | Bind address (default `0.0.0.0`) |
 | `PORT` | Listening port (default `3001`) |
-| `CORS_ORIGIN` | Allowed CORS origin |
+| `CORS_ORIGIN` | Allowed CORS origin (default `http://localhost:5173`) |
 | `LOG_LEVEL` | Fastify log level |
 | `SHELTER_DEMO` | `true` enables in-memory demo fixtures (refused in production) |
+| `DO_GPT_OSS_API_KEY` | DigitalOcean API key for hosted inference (optional; omit for deterministic fallback) |
+| `DO_GPT_OSS_MODEL` | DigitalOcean hosted inference model (default `openai-gpt-oss-120b`) |
+| `DO_INFERENCE_URL` | Inference endpoint URL (default `https://inference.do-ai.run/v1/chat/completions`) |
+| `AI_TIMEOUT_MS` | Inference client timeout in milliseconds (default `12000`) |
+| `AI_MAX_OUTPUT_TOKENS` | Max tokens per explanation response (default `1000`) |
+| `AI_TEMPERATURE` | Model temperature (default `0.2` for deterministic grounded tone) |
 
 ### Development servers
 
@@ -596,7 +660,8 @@ npx --yes pnpm@10.30.1 -- pnpm --filter @flood/backend run geo:seed
 | `app/backend/tests/routing.test.ts` | MinHeap, Dijkstra, snapping, real graph | 36 |
 | `app/backend/tests/flood.test.ts` | PostGIS intersection, scenario API | 30 |
 | `app/backend/tests/accessibility.test.ts` | Shelter reachability, comparison | 16 |
-| `app/backend/tests/ai.test.ts` | AI service unit tests, fallback | — |
+| `app/backend/tests/ai.test.ts` | AI provider, Zod validator, prompt builder, fallback | 19 |
+| `app/backend/tests/ai.integration.test.ts` | AI endpoint integration & provenance | 4 |
 | `app/frontend/src/*.test.ts` | API client, map layers, theme, workspace | 38 |
 | Browser E2E | Playwright — desktop + mobile, Light/Dark | Passed |
 
