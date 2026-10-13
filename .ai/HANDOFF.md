@@ -1,5 +1,32 @@
 # AI AGENT HANDOFF — Flood Digital Twin
 
+## Latest frontend enhancement — UI-01 themes
+
+Implemented a persistent, system-aware ATLAS light/dark theme without changing
+backend APIs. Original light canvas/surface colors and teal accent are retained;
+semantic chart and map-overlay variables are defined for a navy dark palette.
+The synchronous head bootstrap avoids first-paint theme mismatch. The accessible
+44px Sun/Moon control switches between explicit themes, and System clears the
+override. Storage failures and cross-tab preference updates are handled.
+
+`app/frontend/src/map-theme.ts` prepares OpenFreeMap Positron/Dark styles and
+concrete overlay colors for UI-03. MapLibre remains uninstalled, so interactive
+style switching is unverified until UI-03. `docs/05-UI-UX-DESIGN.md` describes
+theme and contrast requirements.
+
+Verification on Node 22.17: **24 frontend tests PASSED**, frontend TypeScript
+**PASSED**, Vite production build **PASSED**, including `dist/theme.js` and
+`dist/theme.css`. Tests cover first-paint ordering, system detection and changes,
+localStorage persistence and failures, cross-tab updates, maps and color contrast.
+Browser checks covered light/dark and System reset; 1440×900 and 390×844 had no
+horizontal overflow and controls retained 44px height. The production Vite preview
+served the theme assets and toggle correctly. It showed the expected API-unavailable
+state because it has no production API proxy and the backend was stopped.
+
+No API contracts, backend source, map engine, lockfile or infrastructure were changed.
+
+---
+
 ## Latest handoff — 2026-10-13
 
 **Tasks:** SET-01–SET-08. **Status:** DONE. **Workstream:** Developer A.

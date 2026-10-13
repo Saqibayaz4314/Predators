@@ -3,6 +3,16 @@
 ## Latest verified state — 2026-10-13 (supersedes initial planning record below)
 
 - **Phase:** Foundation complete; SET-01 through SET-08 verified DONE.
+- **Latest frontend enhancement:** UI-01 theme extension implemented. Original light
+  surfaces and teal identity are preserved; semantic navy dark palette, accessible
+  Sun/Moon toggle, persisted light/dark choice, system-following default and theme
+  reset are implemented. A blocking local bootstrap applies the theme before React;
+  semantic chart/map overlay colors and a ready OpenFreeMap Positron/Dark style
+  adapter are defined. MapLibre remains unintegrated (UI-03).
+- **Theme verification:** 24 frontend tests passed, including storage/system behavior,
+  pre-paint ordering and WCAG color contrast across text, status, chart and map tokens;
+  production frontend build and typecheck passed. Browser review: dark/light at
+  1440×900 and 390×844; no horizontal overflow.
 - **Audit:** `app/` was empty; no package manager, lockfile, TypeScript configuration
   or application packages existed. `ai/` contained all four state files and was
   renamed to `.ai/` with its content preserved. An initial commit appeared during

@@ -1,0 +1,94 @@
+/* ATLAS semantic palette. Loaded before the application and theme bootstrap. */
+:root {
+  color-scheme: light;
+  --atlas-canvas: #F4F6F5;
+  --atlas-surface: #FFFFFF;
+  --atlas-surface-alt: #EEF2F1;
+  --atlas-surface-elevated: #FFFFFF;
+  --atlas-text: #172D33;
+  --atlas-text-secondary: #586E73;
+  --atlas-text-muted: #586E73;
+  --atlas-border: #DCE4E2;
+  --atlas-border-strong: #BCCDC9;
+  --atlas-border-control: #586E73;
+  --atlas-accent: #146F70;
+  --atlas-accent-hover: #0F5859;
+  --atlas-accent-subtle: #E4F1EE;
+  --atlas-on-accent: #FFFFFF;
+  --atlas-structural: #203943;
+  --atlas-focus: #146F70;
+  --atlas-success: #277A58;
+  --atlas-warning: #855710;
+  --atlas-error: #AF3D3A;
+  --atlas-neutral: #586E73;
+  --atlas-chart-grid: #DCE4E2;
+  --atlas-chart-axis: #586E73;
+  --atlas-chart-baseline: #3266A8;
+  --atlas-chart-scenario: #137F66;
+  --atlas-chart-affected: #B84439;
+  --atlas-chart-warning: #855710;
+  --atlas-map-background: #F4F6F5;
+  --atlas-route-baseline: #3266A8;
+  --atlas-route-scenario: #137F66;
+  --atlas-road-affected: #C3473D;
+  --atlas-flood-fill: #3C94B8;
+  --atlas-flood-outline: #1B7396;
+  --atlas-flood-opacity: 0.18;
+  --atlas-origin: #233D4C;
+  --atlas-destination: #137F66;
+  --atlas-shelter-reachable: #278060;
+  --atlas-shelter-unreachable: #B84439;
+  --atlas-shelter-unknown: #586E73;
+  --atlas-road-selected: #926000;
+  --atlas-map-halo: #FFFFFF;
+  --atlas-selection: #E4F1EE;
+  background-color: var(--atlas-canvas);
+  color: var(--atlas-text);
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --atlas-canvas: #0C1624;
+  --atlas-surface: #132235;
+  --atlas-surface-alt: #1A2D43;
+  --atlas-surface-elevated: #20364E;
+  --atlas-text: #E8F0F5;
+  --atlas-text-secondary: #B2C3D1;
+  --atlas-text-muted: #9EB2C4;
+  --atlas-border: #2B4057;
+  --atlas-border-strong: #46627C;
+  --atlas-border-control: #819AB0;
+  --atlas-accent: #72D4C7;
+  --atlas-accent-hover: #A0E9DE;
+  --atlas-accent-subtle: #193C43;
+  --atlas-on-accent: #0C1624;
+  --atlas-structural: #D4E3EE;
+  --atlas-focus: #8DE6D7;
+  --atlas-success: #80D3A9;
+  --atlas-warning: #F0C275;
+  --atlas-error: #FF9B94;
+  --atlas-neutral: #9EB2C4;
+  --atlas-chart-grid: #2B4057;
+  --atlas-chart-axis: #B2C3D1;
+  --atlas-chart-baseline: #8FBDF5;
+  --atlas-chart-scenario: #74D5AC;
+  --atlas-chart-affected: #FF9A8F;
+  --atlas-chart-warning: #F0C275;
+  --atlas-map-background: #0C1624;
+  --atlas-route-baseline: #8FBDF5;
+  --atlas-route-scenario: #74D5AC;
+  --atlas-road-affected: #FF9A8F;
+  --atlas-flood-fill: #65B9DE;
+  --atlas-flood-outline: #85D5F3;
+  --atlas-flood-opacity: 0.22;
+  --atlas-origin: #E0ECF5;
+  --atlas-destination: #74D5AC;
+  --atlas-shelter-reachable: #80D3A9;
+  --atlas-shelter-unreachable: #FF9A8F;
+  --atlas-shelter-unknown: #A9BBCB;
+  --atlas-road-selected: #F0C275;
+  --atlas-map-halo: #0C1624;
+  --atlas-selection: #234D59;
+}
+
+::selection { background: var(--atlas-selection); color: var(--atlas-text); }

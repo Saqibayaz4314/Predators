@@ -219,9 +219,26 @@ Suggested treatment:
 - Neutral gray represents unknown or unevaluated data.
 - Teal represents application controls.
 
+## 4.4 Accessible theme variants
+
+The light values above remain the ATLAS light theme. The application also offers
+a persistent, system-aware dark theme using semantic `--atlas-*` variables.
+Set `data-theme="dark"` on the root element to apply the navy variant; all
+surface, text, status, chart, focus, and map-overlay tokens are defined for both
+themes. Keep status and route meanings consistent across themes.
+
+Normal text and status text must meet WCAG 2.2 AA contrast (4.5:1) on canvas,
+surface, alternate surface, and elevated surface. Controls, focus indicators,
+chart series, and map overlays must contrast at least 3:1 against adjacent
+surfaces; use route dash patterns and distinct icons in addition to color.
+
+Respect the device color scheme by default. Store explicit light or dark choices
+in localStorage, and let users return to system preference. Apply the selected
+palette before first content paint.
+
 **Do not use the same exact color to represent unrelated concepts.**
 
-## 4.4 Basemap Contrast
+## 4.5 Basemap Contrast
 
 The basemap must remain quieter than simulation overlays.
 

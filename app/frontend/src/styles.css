@@ -1,33 +1,35 @@
 @import "tailwindcss";
 
-@theme {
-  --color-canvas: #F4F6F5;
-  --color-surface: #FFFFFF;
-  --color-surface-alt: #EEF2F1;
-  --color-ink: #172D33;
-  --color-secondary: #61757A;
-  --color-muted: #859499;
-  --color-border: #DCE4E2;
-  --color-border-strong: #BCCDC9;
-  --color-brand: #146F70;
-  --color-brand-hover: #0F5859;
-  --color-brand-pale: #E4F1EE;
-  --color-navy: #203943;
-  --color-success: #277A58;
-  --color-warning: #B47B24;
-  --color-error: #BE4A47;
-  --color-neutral: #75848A;
-  --color-route-baseline: #3266A8;
-  --color-route-scenario: #137F66;
-  --color-road-affected: #D35449;
-  --color-flood: #3C94B8;
+@theme inline {
+  --color-canvas: var(--atlas-canvas);
+  --color-surface: var(--atlas-surface);
+  --color-surface-alt: var(--atlas-surface-alt);
+  --color-surface-elevated: var(--atlas-surface-elevated);
+  --color-ink: var(--atlas-text);
+  --color-secondary: var(--atlas-text-secondary);
+  --color-muted: var(--atlas-text-muted);
+  --color-border: var(--atlas-border);
+  --color-border-strong: var(--atlas-border-strong);
+  --color-border-control: var(--atlas-border-control);
+  --color-brand: var(--atlas-accent);
+  --color-brand-hover: var(--atlas-accent-hover);
+  --color-brand-pale: var(--atlas-accent-subtle);
+  --color-navy: var(--atlas-structural);
+  --color-success: var(--atlas-success);
+  --color-warning: var(--atlas-warning);
+  --color-error: var(--atlas-error);
+  --color-neutral: var(--atlas-neutral);
+  --color-route-baseline: var(--atlas-route-baseline);
+  --color-route-scenario: var(--atlas-route-scenario);
+  --color-road-affected: var(--atlas-road-affected);
+  --color-flood: var(--atlas-flood-fill);
   --font-sans: "Segoe UI", Inter, system-ui, sans-serif;
 }
 
 @layer base {
   body { @apply m-0 bg-canvas text-ink font-sans; font-size: 14px; }
   button, a { -webkit-tap-highlight-color: transparent; }
-  button:focus-visible, a:focus-visible { outline: 2px solid var(--color-brand); outline-offset: 4px; }
+  button:focus-visible, a:focus-visible { outline: 2px solid var(--atlas-focus); outline-offset: 4px; }
   button { cursor: pointer; }
   button:disabled { cursor: wait; opacity: .6; }
   p { @apply text-secondary; line-height: 1.65; }
@@ -39,7 +41,14 @@
   .wordmark { @apply text-ink; display: block; font-size: 9px; letter-spacing: .18em; margin-top: 4px; }
   .workspace-title { @apply border-l border-border; padding-left: 28px; display: grid; gap: 4px; font-size: 13px; }
   .eyebrow { @apply text-secondary; font-size: 11px; letter-spacing: .1em; font-weight: 650; }
-  .phase-label { @apply bg-surface-alt text-secondary border border-border; margin-left: auto; padding: 5px 10px; border-radius: 4px; font-size: 11px; white-space: nowrap; }
+  .header-actions { margin-left: auto; display: flex; align-items: center; gap: 20px; }
+  .phase-label { @apply bg-surface-alt text-secondary border border-border; padding: 5px 10px; border-radius: 4px; font-size: 11px; white-space: nowrap; }
+  .theme-controls { display: flex; align-items: center; gap: 8px; }
+  .theme-toggle, .theme-system { @apply border border-border-control bg-surface text-secondary; min-width: 44px; height: 44px; border-radius: 4px; display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .theme-toggle { @apply text-brand; }
+  .theme-system { padding: 0 10px; font-size: 11px; }
+  .theme-toggle:hover, .theme-system:hover { @apply bg-brand-pale text-brand; }
+  .theme-system[aria-pressed="true"] { @apply bg-brand-pale text-brand; border-color: var(--atlas-accent); }
   .notice { @apply bg-brand-pale text-brand border-b border-border; padding: 11px 26px; display: flex; align-items: center; gap: 10px; font-size: 12px; }
   .notice svg { flex-shrink: 0; }
   .workspace { display: grid; grid-template-columns: 270px minmax(0, 1fr) 290px; flex: 1; }
@@ -67,7 +76,7 @@
   .connection { @apply border-t border-border; padding: 20px 22px; }
   .connection h3 { font-size: 12px; margin: 0 0 18px; }
   .connection-status { display: flex; gap: 8px; align-items: center; font-size: 12px; margin-bottom: 10px; }
-  .retry-button { @apply border border-border-strong text-brand bg-surface; display: flex; align-items: center; justify-content: center; gap: 9px; width: 100%; min-height: 44px; border-radius: 4px; padding: 10px; margin-top: 20px; font-size: 12px; font-weight: 600; }
+  .retry-button { @apply border border-border-control text-brand bg-surface; display: flex; align-items: center; justify-content: center; gap: 9px; width: 100%; min-height: 44px; border-radius: 4px; padding: 10px; margin-top: 20px; font-size: 12px; font-weight: 600; }
   .retry-button:hover { @apply bg-brand-pale; }
   .error-message { @apply text-error; display: flex; gap: 8px; align-items: flex-start; }
   .error-message svg { flex-shrink: 0; margin-top: 3px; }
@@ -76,23 +85,25 @@
   .configuration-error { max-width: 560px; padding: 40px; margin: auto; }
   @media (max-width: 1100px) {
     .workspace { grid-template-columns: 225px minmax(0, 1fr); }
-    .inspector { grid-column: 1 / -1; display: grid; grid-template-columns: 225px 1fr 1fr; border-top: 1px solid var(--color-border); }
+    .inspector { grid-column: 1 / -1; display: grid; grid-template-columns: 225px 1fr 1fr; border-top: 1px solid var(--atlas-border); }
     .inspector .panel-title { align-items: flex-start; border-bottom: 0; }
-    .connection { border-top: 0; border-left: 1px solid var(--color-border); }
+    .connection { border-top: 0; border-left: 1px solid var(--atlas-border); }
   }
   @media (max-width: 640px) {
     .topbar { padding: 17px; gap: 12px; }
     .workspace-title { display: none; }
+    .header-actions { gap: 8px; }
+    .phase-label { display: none; }
     .notice { padding: 12px 17px; align-items: flex-start; font-size: 11px; }
     .workspace { display: flex; flex-direction: column; }
     .map-space { order: -1; min-height: 430px; border: 0; }
     .map-toolbar, .map-footnote { padding: 16px; font-size: 9px; }
     .empty-map { padding: 28px 18px; }
     .empty-map h1 { font-size: 24px; }
-    .side-panel { border-top: 1px solid var(--color-border); }
+    .side-panel { border-top: 1px solid var(--atlas-border); }
     .inspector { display: block; }
     .panel-body { padding: 22px; }
-    .connection { border-left: 0; border-top: 1px solid var(--color-border); }
+    .connection { border-left: 0; border-top: 1px solid var(--atlas-border); }
     .statusbar { padding: 14px 17px; flex-wrap: wrap; }
   }
   @media (prefers-reduced-motion: reduce) { .animate-spin { animation: none; } }

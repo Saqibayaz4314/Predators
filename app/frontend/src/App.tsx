@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { ArrowUpRight, CircleHelp, Layers, Map, RefreshCw, SlidersHorizontal, Unplug } from 'lucide-react';
 import { fetchServiceStatus } from './api';
+import { ThemeToggle } from './ThemeToggle';
 
 export function App({ apiBaseUrl }: { apiBaseUrl: string }) {
   const status = useQuery({ queryKey: ['service-status', apiBaseUrl], queryFn: ({ signal }) => fetchServiceStatus(apiBaseUrl, signal) });
@@ -9,7 +10,7 @@ export function App({ apiBaseUrl }: { apiBaseUrl: string }) {
     <header className="topbar">
       <a className="brand" href="/" aria-label="Flood Digital Twin home"><Layers size={29} strokeWidth={1.6} /><span>FLOOD<span className="wordmark">DIGITAL TWIN</span></span></a>
       <div className="workspace-title"><span className="eyebrow">ATLAS WORKSPACE</span><span>Flood scenario analysis</span></div>
-      <span className="phase-label">Foundation preview</span>
+      <div className="header-actions"><span className="phase-label">Foundation preview</span><ThemeToggle /></div>
     </header>
     <div className="notice"><CircleHelp size={16} /><span>Simulation prototype. Hypothetical scenarios only. Not official evacuation guidance.</span></div>
     <main className="workspace">

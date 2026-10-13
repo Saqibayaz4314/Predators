@@ -1,5 +1,19 @@
 # ARCHITECTURE DECISION RECORD — Flood Digital Twin
 
+## UI-001 — Theme preference and map palette (ACCEPTED, 2026-10-13)
+
+Preserve ATLAS's established light palette and expose semantic CSS custom properties
+for both the light and navy dark variants. A synchronous, local, pre-body bootstrap
+selects explicit localStorage preference or follows `prefers-color-scheme`; users
+can return to system following. React subscribes to that single preference store.
+The same resolved palette supplies chart and GIS overlay colors. The future
+MapLibre boundary resolves concrete CSS colors, selects OpenFreeMap Positron or
+Dark styles and adds a dashed baseline route; color remains supplementary to route
+line patterns. MapLibre installation and map rendering remain UI-03 scope.
+
+See `docs/05-UI-UX-DESIGN.md` for palette and contrast requirements, and
+`app/frontend/src/map-theme.ts` for the OpenFreeMap style adapter.
+
 ## FOUNDATION-001 — Runtime and readiness (ACCEPTED, 2026-10-13)
 
 SET-01–SET-08 use Node 22 (minimum 22.12), pnpm 10.30.1, ESM packages and

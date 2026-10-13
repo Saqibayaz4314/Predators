@@ -262,7 +262,7 @@ If OSM preprocessing becomes a bottleneck, reduce the study-area extent rather t
 
 | ID | Task | Owner | Priority | Depends on | Status |
 |---|---|---|---|---|---|
-| UI-01 | Implement ATLAS design tokens | A | P0 | SET-03 | TODO |
+| UI-01 | Implement ATLAS design tokens | A | P0 | SET-03 | DONE |
 | UI-02 | Implement application shell | A | P0 | UI-01 | TODO |
 | UI-03 | Integrate MapLibre | A | P0 | SET-03 | TODO |
 | UI-04 | Load study-area and road layers | A | P0 | UI-03, API-03 | TODO |
@@ -274,6 +274,12 @@ If OSM preprocessing becomes a bottleneck, reduce the study-area extent rather t
 | UI-10 | Implement Impact Inspector | A | P0 | UI-02, API-05 | TODO |
 | UI-11 | Add loading and error states | A | P0 | UI-05–UI-10 | TODO |
 | UI-12 | Prevent stale scenario responses | A | P0 | UI-05, UI-09 | TODO |
+
+UI-01 light/dark theme enhancement verified 2026-10-13. Palette tokens, accessible
+theme control, system preference handling, pre-paint bootstrap and MapLibre style
+configuration are implemented in the frontend. 44 foreground/surface contrast
+checks, 10 theme lifecycle tests, and browser reviews at desktop/mobile passed.
+MapLibre itself remains unimplemented (UI-03).
 
 ### Phase F acceptance
 
