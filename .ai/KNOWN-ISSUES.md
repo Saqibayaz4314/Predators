@@ -1,5 +1,13 @@
 # KNOWN ISSUES & BLOCKER REGISTER
 
+## AI explanation + provenance verification — 2026-10-14
+
+- **AI-VERIFY-001 — RESOLVED:** DigitalOcean GPT-OSS 120B endpoint verified with one minimal smoke request — HTTP 200, title/summary/observations/limitations parsed, grounding validation PASSED. The model is a reasoning model; an early 80-token probe returned `finish_reason: length` with empty content, so `AI_MAX_OUTPUT_TOKENS` now defaults to 1000.
+- **AI-FALLBACK-001 — VERIFIED:** without `DO_GPT_OSS_API_KEY` (or on any provider failure/timeout) `POST /api/v1/ai/explain` returns `source: "deterministic_fallback"` (English-only); never HTTP 500. 19 unit + 4 SELECT-only integration tests pass. Missing credentials do not affect `/health`, `/ready` or any P0 endpoint.
+- **AI-GROUND-001 — DOCUMENTED ENFORCEMENT:** output validator rejects AI prose containing digits or wrong-script text for ur/sd and falls back instead of letting the model invent distances, closure counts or reachability states. Routing/impact metrics remain backend-computed.
+- **AI-SEC-001 — OPEN (user action required):** `DO_GPT_OSS_API_KEY` must be added as a GitHub secret for production AI explanations. Until then production serves deterministic fallbacks only (safe). The key is never committed, logged or placed in frontend code.
+
+
 ## Shelter/comparison verification — 2026-10-14
 
 - **SHELTER-DATA-001 — BLOCKED (data availability):** Existing PostGIS shelters table contains 0 rows. No source-verified live shelter locations available. Live UI/API return honest empty state. Import requires provenance; no invented facility locations have been inserted. Explicit localhost/test-only in-memory fixtures support demonstration without production writes.
@@ -187,7 +195,7 @@ These are planning risks, not confirmed software defects.
 | RISK-005 | Existing Kubernetes files not audited | Developer B | P0 | RESOLVED (2026-10-14) |
 | RISK-006 | Terraform state/resource ownership unknown | Developer B | P0 | OPEN |
 | RISK-007 | Public ingress and TLS strategy unverified | Developer B | P0 | OPEN (approach chosen: NLB + nginx API proxy; needs live deploy to verify) |
-| RISK-008 | DigitalOcean AI provider details unverified | Developer A | P1 | OPEN |
+| RISK-008 | DigitalOcean AI provider details unverified | Developer A | P1 | RESOLVED (2026-10-14 — endpoint verified, adapter + fallback committed) |
 
 Update these only when evidence becomes available.
 
@@ -911,12 +919,16 @@ The final public URL and HTTPS strategy have not been verified.
 
 ## RISK-008 — Optional AI Provider
 
-**Status:** OPEN  
+**Status:** RESOLVED (2026-10-14)  
 **Owner:** Developer A
 
-The proposed DigitalOcean inference model and endpoint are not yet verified.
+The DigitalOcean inference endpoint (`openai-gpt-oss-120b` on
+`inference.do-ai.run`) was verified with one minimal smoke request
+(HTTP 200, valid grounded explanation). The provider adapter, grounding
+validation and deterministic fallback are implemented and committed.
 
-**Next action:** Defer provider integration until the core demo is stable.
+**Remaining action:** add `DO_GPT_OSS_API_KEY` as a GitHub secret before
+production AI use (AI-SEC-001).
 
 ---
 

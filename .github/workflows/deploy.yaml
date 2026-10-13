@@ -148,15 +148,27 @@ jobs:
       - name: Create Kubernetes Secret from GitHub Secrets
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          DO_GPT_OSS_API_KEY: ${{ secrets.DO_GPT_OSS_API_KEY }}
         run: |
           kubectl apply -f k8s/namespace.yaml
+          ARGS=()
           if [ -n "$DATABASE_URL" ]; then
+            ARGS+=(--from-literal=DATABASE_URL="$DATABASE_URL")
+          else
+            echo "::warning::GitHub secret DATABASE_URL is not set — backend /ready will stay 503."
+          fi
+          if [ -n "$DO_GPT_OSS_API_KEY" ]; then
+            ARGS+=(--from-literal=DO_GPT_OSS_API_KEY="$DO_GPT_OSS_API_KEY")
+          else
+            echo "::notice::GitHub secret DO_GPT_OSS_API_KEY is not set — AI explanations use the deterministic fallback."
+          fi
+          if [ ${#ARGS[@]} -gt 0 ]; then
             kubectl create secret generic flood-secrets -n "${{ env.K8S_NAMESPACE }}" \
-              --from-literal=DATABASE_URL="$DATABASE_URL" \
+              "${ARGS[@]}" \
               --dry-run=client -o yaml | kubectl apply -f -
             echo "Secret flood-secrets upserted."
           else
-            echo "::warning::GitHub secret DATABASE_URL is not set — backend /ready will stay 503."
+            echo "::warning::No secret material available; keeping any existing flood-secrets."
           fi
 
       - name: Deploy Kubernetes Manifests

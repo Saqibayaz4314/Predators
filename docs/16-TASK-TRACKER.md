@@ -280,7 +280,7 @@ Next (updated 2026-10-14): SHELTER-01; flood, core API and map work now verified
 | API-08 | Route comparison endpoint | A | P0 | FLOOD-06 | DONE |
 | API-09 | Consistent error handling | A | P0 | API-01 | DONE |
 | API-10 | API contract tests | A | P0 | API-02–API-09 | DONE |
-| API-11 | Data provenance endpoint | A | P1 | GEO-07 | TODO |
+| API-11 | Data provenance endpoint | A | P1 | GEO-07 | DONE |
 
 ### Phase E acceptance
 
@@ -526,11 +526,25 @@ CICD-05+ need the `DATABASE_URL` GitHub secret and a real run (see
 
 | ID | Task | Owner | Priority | Depends on | Status |
 |---|---|---|---|---|---|
-| AI-01 | Implement deterministic explanation fallback | A | P1 | FLOOD-07 | TODO |
-| AI-02 | Verify DigitalOcean AI provider | A | P1 | AI-01 | TODO |
-| AI-03 | Implement AI provider adapter | A | P1 | AI-02 | TODO |
-| AI-04 | Validate AI output | A | P1 | AI-03 | TODO |
+| AI-01 | Implement deterministic explanation fallback | A | P1 | FLOOD-07 | DONE |
+| AI-02 | Verify DigitalOcean AI provider | A | P1 | AI-01 | DONE |
+| AI-03 | Implement AI provider adapter | A | P1 | AI-02 | DONE |
+| AI-04 | Validate AI output | A | P1 | AI-03 | DONE |
 | AI-05 | Integrate explanation panel | A | P1 | AI-04, UI-10 | TODO |
+
+AI-01..04 verified 2026-10-14: `POST /api/v1/ai/explain` (P1) implemented
+with the DigitalOcean GPT-OSS 120B adapter (`openai-gpt-oss-120b` on
+`inference.do-ai.run`, OpenAI-compatible chat completions), grounding
+output validation (digit-free qualitative prose; script check for ur/sd),
+and an English deterministic fallback. Live smoke test returned HTTP 200
+with all four JSON keys and passed the grounding check (619 total tokens
+on a minimal request; the model is a reasoning model, so
+`AI_MAX_OUTPUT_TOKENS` defaults to 1000). Provider failure always degrades
+to `source: "deterministic_fallback"` — never HTTP 500. 23 AI tests pass
+(19 unit + 4 SELECT-only integration). API-11 verified: `GET
+/api/v1/data/provenance` returns real dataset provenance (Sukkur/Rohri,
+`sukkur-osm-2026-10-v1`, ODbL). AI-05 (frontend explanation panel) remains
+open — backend is ready for it.
 | EXTRA-01 | Cross-scenario comparison | A | P2 | FLOOD-07 | DONE |
 | EXTRA-02 | Downloadable analysis report | A | P2 | API-05 | TODO |
 

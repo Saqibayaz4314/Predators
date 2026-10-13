@@ -15,3 +15,11 @@ data:
   # frontend nginx reverse proxy (same origin), so cross-origin requests are
   # not expected. Set it to the public URL if direct cross-origin access is
   # ever required.
+  # Optional AI explanation engine (DigitalOcean hosted inference).
+  # The API key belongs in flood-secrets; these settings are non-sensitive.
+  # If the key is absent the backend serves deterministic fallbacks only.
+  DO_GPT_OSS_MODEL: "openai-gpt-oss-120b"
+  DO_INFERENCE_URL: "https://inference.do-ai.run/v1/chat/completions"
+  AI_TIMEOUT_MS: "12000"
+  AI_MAX_OUTPUT_TOKENS: "1000"
+  AI_TEMPERATURE: "0.2"

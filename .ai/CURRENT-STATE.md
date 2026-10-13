@@ -1,5 +1,16 @@
 # CURRENT STATE — Flood Digital Twin
 
+## Latest verified state — 2026-10-14 (AI explanation engine + provenance)
+
+- **Implemented:** AI-01..04 (`POST /api/v1/ai/explain`) and API-11 (`GET /api/v1/data/provenance`). No shelter/comparison/frontend files modified; commits `40a003d` and `9303e3a` preserved. No push, merge, reset or database writes.
+- **AI engine:** DigitalOcean GPT-OSS 120B adapter (`openai-gpt-oss-120b`, `inference.do-ai.run`, OpenAI-compatible chat completions) behind the `AIProvider` interface; deterministic English fallback; grounding validation (digit-free qualitative prose, Arabic-script check for ur/sd) — any violation falls back instead of inventing metrics. Provider failure NEVER returns HTTP 500.
+- **Live provider verification:** one minimal smoke request returned HTTP 200 with title/summary/observations/limitations and passed the grounding check (619 total tokens; the model is a reasoning model, so `AI_MAX_OUTPUT_TOKENS` defaults to 1000). Script: `app/backend/scripts/verify-ai-provider.mjs` (prints no key/headers).
+- **Provenance:** `/api/v1/data/provenance` returns real dataset provenance (Sukkur/Rohri, `sukkur-osm-2026-10-v1`, ODbL) with routing/shelter limitations and attribution — feeds the P0 Data & Methodology page.
+- **Optionality:** without `DO_GPT_OSS_API_KEY` the backend serves `source: "deterministic_fallback"`; `/health`, `/ready` and all P0 endpoints are unaffected. Config in k8s ConfigMap; key via GitHub secret `DO_GPT_OSS_API_KEY` upserted into `flood-secrets` only when present.
+- **Status fix (carried from earlier session):** `/api/v1/status` now reports real database/dataset/graph state with widened shared schemas (envelope schemas extracted to `packages/shared/src/envelope.ts`).
+- **PASSED:** backend 159/159 (9 files: 19 AI unit + 4 AI/provenance integration incl. fallback, 404 SCENARIO_NOT_FOUND, 400 VALIDATION_ERROR); frontend 38/38; backend+frontend `tsc --noEmit` exit 0; shared build; deploy.yaml + configmap.yaml YAML parse.
+- **Next:** frontend AI-05 explanation panel (backend ready), `DO_GPT_OSS_API_KEY` GitHub secret for production AI, then push/CI after user approval.
+
 ## Latest verified state — 2026-10-14 (Shelter accessibility and A/B/C)
 
 - **Implemented:** SHELTER-02..08 and EXTRA-01. Existing workspace preserved; commit 40a003d remains in history. No push, merge, reset, database insert/reset or infrastructure change by this workstream.

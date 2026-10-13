@@ -1,25 +1,10 @@
 import { z } from 'zod';
+import { apiSuccessSchema } from './envelope.js';
 export * from './geospatial.js';
 export * from './accessibility.js';
-
-export const apiMetaSchema = z.object({
-  requestId: z.string().min(1),
-  datasetVersion: z.string().optional(),
-  computedAt: z.string().datetime().optional(),
-});
-
-export const apiSuccessSchema = <T extends z.ZodTypeAny>(data: T) => z.object({
-  success: z.literal(true), data, meta: apiMetaSchema,
-});
-
-export const apiErrorSchema = z.object({
-  success: z.literal(false),
-  error: z.object({ code: z.string(), message: z.string(), details: z.record(z.unknown()).optional() }),
-  meta: z.object({ requestId: z.string().min(1) }),
-});
-
-export type ApiSuccess<T> = { success: true; data: T; meta: z.infer<typeof apiMetaSchema> };
-export type ApiError = z.infer<typeof apiErrorSchema>;
+export * from './ai.js';
+export * from './data.js';
+export * from './envelope.js';
 
 export const dependencyChecksSchema = z.object({
   backend: z.literal('initialized'),

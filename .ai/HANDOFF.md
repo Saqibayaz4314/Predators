@@ -1,6 +1,36 @@
 # AI AGENT HANDOFF — Flood Digital Twin
 
-## Latest handoff — 2026-10-14 (SHELTER-02..08 / EXTRA-01)
+## Latest handoff — 2026-10-14 (AI-01..04 / API-11 — AI explanation engine + provenance)
+
+**Status:** AI explanation and data-provenance endpoints implemented and verified. Two local commits, no push, merge, reset or database writes. Shelter/comparison work (9303e3a) untouched; status fix committed separately as eb23831.
+
+### Scope
+
+- `POST /api/v1/ai/explain` (P1): backend computes authoritative metrics from floodService/routeService/shelterService; DigitalOcean GPT-OSS 120B adapter behind the `AIProvider` interface; deterministic English fallback; grounding validation rejects digit-bearing or wrong-script output and falls back instead of letting the model invent distances, closure counts or reachability. Provider failure never returns HTTP 500.
+- `GET /api/v1/data/provenance` (API-11, feeds the P0 Data & Methodology page): real dataset provenance (Sukkur/Rohri, `sukkur-osm-2026-10-v1`, ODbL) with routing/shelter limitations and attribution; 503 ANALYSIS_UNAVAILABLE when no active area/dataset.
+- Optionality: without `DO_GPT_OSS_API_KEY` every explain response is `source: "deterministic_fallback"`; `/health`, `/ready` and all P0 endpoints are unaffected.
+
+### Files
+
+Backend: `src/modules/ai/{ai.service,ai.schemas,ai.types,prompt-builder,output-validator,deterministic-fallback}.ts`, `src/modules/ai/providers/digitalocean.provider.ts`; `src/routes/{ai,data}.ts`; `app.ts` registration; `config/env.ts` AI fields (`DO_GPT_OSS_MODEL`, `DO_INFERENCE_URL`, `AI_TIMEOUT_MS=12000`, `AI_MAX_OUTPUT_TOKENS=1000`, `AI_TEMPERATURE=0.2`); `tests/ai.test.ts` (19 unit), `tests/ai.integration.test.ts` (4 SELECT-only); `scripts/verify-ai-provider.mjs`.
+Shared: `src/{ai,data,envelope}.ts`; envelope schemas extracted from `index.ts` to break a circular import; `index.ts` re-exports everything.
+Infra: `.github/workflows/deploy.yaml` (optional `DO_GPT_OSS_API_KEY` GitHub secret upserted into `flood-secrets` alongside DATABASE_URL; warns, never fails, when absent); `k8s/configmap.yaml` (non-sensitive model/URL/timeout/temperature); `app/backend/.env.example`.
+
+### Verified
+
+- Backend 159/159 (9 files: 19 AI unit + 4 AI/provenance integration incl. deterministic fallback, 404 SCENARIO_NOT_FOUND, 400 VALIDATION_ERROR); frontend 38/38; backend+frontend `tsc --noEmit` and builds exit 0; shared build; deploy.yaml + configmap.yaml YAML parse. Integration tests auto-skip without DATABASE_URL and only run SELECT queries.
+- Live provider smoke test (one minimal request): HTTP 200, valid title/summary/observations/limitations, grounding check PASSED. GPT-OSS 120B is a reasoning model — early 80-token probe returned `finish_reason: length` with empty content, hence the 1000 default.
+
+### Reproduction
+
+From `app/backend`: `npx vitest run tests/ai.test.ts tests/ai.integration.test.ts`. Live provider check (one paid call, prints no key/headers): `node scripts/verify-ai-provider.mjs` (reads ignored `.env`).
+
+### Next work
+
+AI-05 frontend explanation panel (backend is ready). Add `DO_GPT_OSS_API_KEY` as a GitHub secret before production AI use; until then production serves fallbacks only. Push/CI only with user approval. Commit `eb23831` (status fix) and the AI/provenance commit are separate local commits; README commit `30e496f` appeared concurrently and is preserved.
+
+
+## Previous handoff — 2026-10-14 (SHELTER-02..08 / EXTRA-01)
 
 **Status:** assigned shelter-accessibility and A/B/C features implemented and verified. SHELTER-01 live import is BLOCKED on verified data availability. Keep changes local; no push or merge authorized.
 
