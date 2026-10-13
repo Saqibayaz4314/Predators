@@ -1,0 +1,48 @@
+# Dependencies
+node_modules/
+/.pnpm-store/
+
+# Environment and secrets
+.env
+.env.*
+!.env.example
+k8s/secrets.yaml
+**/secrets.yaml
+
+# Build and test output
+dist/
+build/
+coverage/
+.vite/
+*.tsbuildinfo
+
+# Logs and local runtime files
+*.log
+logs/
+*.pid
+*.pid.lock
+
+# Terraform local state and variable overrides
+terraform/.terraform/
+terraform/*.tfstate
+terraform/*.tfstate.*
+terraform/*.tfvars
+terraform/*.tfvars.json
+terraform/override.tf
+terraform/override.tf.json
+terraform/*_override.tf
+terraform/*_override.tf.json
+
+# Local databases and generated data
+*.sqlite
+*.sqlite3
+*.db
+data/
+
+# OS and editor files
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+*.swo

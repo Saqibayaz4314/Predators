@@ -1,0 +1,256 @@
+name: CI/CD Pipeline - Terraform Infra, Docker Build & EKS Deploy
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+
+env:
+  AWS_REGION: ap-southeast-2
+  TF_STATE_BUCKET: openhack-tfstate-529976312848-apse2
+  ECR_REPOSITORY: my-webapp
+  EKS_CLUSTER_NAME: eks-prod-cluster
+  APP_NAME: my-webapp
+
+jobs:
+  build-provision-and-deploy:
+    name: Build, Provision & Deploy
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.10.5
+          terraform_wrapper: false
+
+      - name: Setup Kubectl
+        uses: azure/setup-kubectl@v4
+        with:
+          version: 'v1.30.0'
+
+      - name: Ensure S3 Remote State Bucket
+        id: s3-state
+        run: |
+          ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+          BUCKET="${{ env.TF_STATE_BUCKET }}"
+          if [ -z "$BUCKET" ]; then
+            BUCKET="openhack-tfstate-${ACCOUNT_ID}-${{ env.AWS_REGION }}"
+          fi
+          echo "Using Terraform state bucket: $BUCKET"
+          echo "BUCKET_NAME=$BUCKET" >> $GITHUB_ENV
+
+          if ! aws s3api head-bucket --bucket "$BUCKET" 2>/dev/null; then
+            echo "Bucket $BUCKET does not exist. Creating..."
+            if [ "${{ env.AWS_REGION }}" = "us-east-1" ]; then
+              aws s3api create-bucket --bucket "$BUCKET"
+            else
+              aws s3api create-bucket --bucket "$BUCKET" --region ${{ env.AWS_REGION }} --create-bucket-configuration LocationConstraint=${{ env.AWS_REGION }}
+            fi
+            aws s3api put-bucket-versioning --bucket "$BUCKET" --versioning-configuration Status=Enabled
+          else
+            echo "Bucket $BUCKET already exists."
+          fi
+
+      - name: Terraform Init & Apply
+        id: terraform
+        run: |
+          cd terraform
+          echo "==> Initializing Terraform with S3 backend..."
+          terraform init \
+            -reconfigure \
+            -backend-config="bucket=${{ env.BUCKET_NAME }}" \
+            -backend-config="key=production/terraform.tfstate" \
+            -backend-config="region=${{ env.AWS_REGION }}"
+
+          echo "==> Applying Terraform Infrastructure (VPC, ECR, EKS)..."
+          terraform apply -auto-approve
+
+          ECR_REPO_URL=$(terraform output -raw ecr_repository_url)
+          CLUSTER_NAME=$(terraform output -raw eks_cluster_name)
+          echo "ECR_REPO_URL=$ECR_REPO_URL" >> $GITHUB_ENV
+          echo "CLUSTER_NAME=$CLUSTER_NAME" >> $GITHUB_ENV
+
+      - name: Log in to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Docker Setup Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Docker Build & Push Frontend to ECR
+        id: docker-build-frontend
+        uses: docker/build-push-action@v5
+        with:
+          context: app/my-react-app
+          file: app/my-react-app/Dockerfile
+          push: true
+          tags: |
+            ${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:${{ github.sha }}
+            ${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:latest
+            ${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:frontend-${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Docker Build & Push Backend to ECR
+        id: docker-build-backend
+        uses: docker/build-push-action@v5
+        with:
+          context: app/Backend
+          file: app/Backend/Dockerfile
+          push: true
+          tags: |
+            ${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:backend-${{ github.sha }}
+            ${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:backend-latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Configure Kubectl for EKS
+        run: |
+          echo "Connecting to EKS cluster: ${{ env.CLUSTER_NAME || env.EKS_CLUSTER_NAME }}"
+          aws eks update-kubeconfig --region ${{ env.AWS_REGION }} --name ${{ env.CLUSTER_NAME || env.EKS_CLUSTER_NAME }}
+
+      - name: Ensure Kubernetes Namespace
+        run: |
+          kubectl create namespace production --dry-run=client -o yaml | kubectl apply -f -
+
+      - name: Deploy Kubernetes Manifests
+        run: |
+          FRONTEND_IMAGE="${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:${{ github.sha }}"
+          BACKEND_IMAGE="${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:backend-${{ github.sha }}"
+          echo "Deploying Frontend image: $FRONTEND_IMAGE"
+          echo "Deploying Backend image : $BACKEND_IMAGE"
+
+          # Dynamically inject newly built image tags into deployment manifests
+          sed -i -E "s|(image: ).*|\1${FRONTEND_IMAGE}|" k8s/deployment.yaml
+          sed -i -E "s|(image: ).*|\1${BACKEND_IMAGE}|" k8s/backend.yaml
+
+          # Remove any legacy stuck statefulset from previous run
+          kubectl delete statefulset mongodb -n production --ignore-not-found=true
+
+          # Apply all manifests in k8s directory
+          kubectl apply -f k8s/ -n production
+
+          # Helper function to monitor rollout and print detailed diagnostics if stuck
+          wait_for_rollout() {
+            local resource=$1
+            echo "==> Monitoring rollout for $resource..."
+            if ! kubectl rollout status "$resource" -n production --timeout=180s; then
+              echo "❌ ROLLOUT FAILED FOR $resource!"
+              echo "--- Pod Status in production ---"
+              kubectl get pods -n production -o wide
+              echo "--- Describe Pods ---"
+              kubectl describe pods -n production
+              echo "--- Pod Logs ---"
+              kubectl logs -l app=my-webapp -n production --tail=50 || true
+              kubectl logs -l app=backend -n production --tail=50 || true
+              kubectl logs -l app=mongodb -n production --tail=50 || true
+              exit 1
+            fi
+            echo "✅ Successfully rolled out $resource"
+          }
+
+          wait_for_rollout deployment/${{ env.APP_NAME }}-deployment
+          wait_for_rollout deployment/backend-deployment
+          wait_for_rollout deployment/mongodb-deployment
+
+
+
+      - name: Retrieve Public IP, Port & Verify Index Page
+        run: |
+          echo "Waiting for AWS Load Balancer to provision external hostname..."
+          LB_HOST=""
+          for i in $(seq 1 60); do
+            LB_HOST=$(kubectl get svc my-webapp-service -n production -o jsonpath='{.status.loadBalancer.ingress[0].hostname}' 2>/dev/null || true)
+            if [ -z "$LB_HOST" ]; then
+              LB_HOST=$(kubectl get svc my-webapp-service -n production -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>/dev/null || true)
+            fi
+            if [ -n "$LB_HOST" ]; then
+              echo "LoadBalancer hostname found: $LB_HOST"
+              break
+            fi
+            echo "Waiting for LoadBalancer ingress address... ($i/60)"
+            sleep 5
+          done
+
+          if [ -z "$LB_HOST" ]; then
+            echo "Error: Timed out waiting for LoadBalancer address."
+            kubectl describe svc my-webapp-service -n production
+            exit 1
+          fi
+
+          PORT=$(kubectl get svc my-webapp-service -n production -o jsonpath='{.spec.ports[0].port}')
+          NODE_PORT=$(kubectl get svc my-webapp-service -n production -o jsonpath='{.spec.ports[0].nodePort}')
+          NODE_IPS=$(kubectl get nodes -o jsonpath='{.items[*].status.addresses[?(@.type=="ExternalIP")].address}' || true)
+
+          # Resolve LoadBalancer DNS hostname to Public IPv4 addresses
+          PUBLIC_IPS=$(dig +short "$LB_HOST" | grep -E '^[0-9.]+$' | tr '\n' ' ' || true)
+          if [ -z "$PUBLIC_IPS" ]; then
+            PUBLIC_IPS=$(getent hosts "$LB_HOST" | awk '{print $1}' | tr '\n' ' ' || true)
+          fi
+
+          echo ""
+          echo "=========================================================="
+          echo "🎉 APPLICATION DEPLOYED SUCCESSFULLY!"
+          echo "=========================================================="
+          echo "Public LoadBalancer URL: http://$LB_HOST:$PORT"
+          echo "LoadBalancer Hostname  : $LB_HOST"
+          echo "LoadBalancer Public IPs: ${PUBLIC_IPS:-$LB_HOST}"
+          echo "Service Port           : $PORT"
+          echo "NodePort               : $NODE_PORT"
+          echo "Worker Node Public IPs : ${NODE_IPS:-None}"
+          echo "=========================================================="
+          echo ""
+
+          echo "Waiting for LoadBalancer to register targets and serve frontend..."
+          APP_CONTENT=""
+          for i in $(seq 1 40); do
+            APP_CONTENT=$(curl -sL -m 5 "http://$LB_HOST:$PORT" || true)
+            if echo "$APP_CONTENT" | grep -qi -E "Dashboard|Task Management|<html"; then
+              echo "✅ Success! Application responded with frontend content."
+              break
+            fi
+            echo "Attempt $i/40: LoadBalancer warming up... waiting 6s"
+            sleep 6
+          done
+
+
+          echo ""
+          echo "==================== INDEX FILE OUTPUT ===================="
+          echo "$APP_CONTENT"
+          echo "==========================================================="
+
+
+          # Write summary to GitHub Step Summary
+          {
+            echo "# 🚀 Application Deployed & Verified"
+            echo ""
+            echo "Everything was built and deployed automatically via \`git push\`."
+            echo ""
+            echo "### 🌐 Public Access Details"
+            echo "- **Public URL**: [http://$LB_HOST:$PORT](http://$LB_HOST:$PORT)"
+            echo "- **LoadBalancer Hostname**: \`$LB_HOST\`"
+            echo "- **Public IP(s)**: \`${PUBLIC_IPS:-$LB_HOST}\`"
+            echo "- **Service Port**: \`$PORT\`"
+            echo "- **NodePort**: \`$NODE_PORT\`"
+            echo "- **Node Public IPs**: \`${NODE_IPS:-Not Assigned}\`"
+            echo ""
+            echo "### 📄 \`index.html\` Response:"
+            echo '```html'
+            echo "$APP_CONTENT"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+

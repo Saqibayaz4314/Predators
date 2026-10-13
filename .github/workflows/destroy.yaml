@@ -1,0 +1,68 @@
+name: Teardown Infrastructure (Terraform Destroy)
+
+on:
+  workflow_dispatch:
+
+env:
+  AWS_REGION: ap-southeast-2
+  TF_STATE_BUCKET: openhack-tfstate-529976312848-apse2
+  EKS_CLUSTER_NAME: eks-prod-cluster
+
+jobs:
+  destroy:
+    name: Clean Teardown
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.10.5
+          terraform_wrapper: false
+
+      - name: Setup Kubectl
+        uses: azure/setup-kubectl@v4
+        with:
+          version: 'latest'
+
+      - name: Delete Kubernetes LoadBalancers & Namespaces First
+        run: |
+          echo "Connecting to EKS to delete active LoadBalancers..."
+          if aws eks update-kubeconfig --region ${{ env.AWS_REGION }} --name ${{ env.EKS_CLUSTER_NAME }} 2>/dev/null; then
+            kubectl delete svc --all -n production --ignore-not-found=true || true
+            kubectl delete namespace production --ignore-not-found=true || true
+            echo "Waiting 30 seconds for AWS to detach LoadBalancer ENIs..."
+            sleep 30
+          else
+            echo "EKS cluster not reachable. Proceeding directly to Terraform destroy."
+          fi
+
+      - name: Run Terraform Destroy
+        run: |
+          cd terraform
+          ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+          BUCKET="${{ env.TF_STATE_BUCKET }}"
+          if [ -z "$BUCKET" ]; then
+            BUCKET="openhack-tfstate-${ACCOUNT_ID}-${{ env.AWS_REGION }}"
+          fi
+
+          echo "Initializing Terraform..."
+          terraform init \
+            -reconfigure \
+            -backend-config="bucket=${BUCKET}" \
+            -backend-config="key=production/terraform.tfstate" \
+            -backend-config="region=${{ env.AWS_REGION }}"
+
+          echo "Destroying all infrastructure..."
+          terraform destroy -auto-approve
