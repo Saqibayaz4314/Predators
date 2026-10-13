@@ -1,5 +1,25 @@
 # ARCHITECTURE DECISION RECORD — Flood Digital Twin
 
+## FOUNDATION-001 — Runtime and readiness (ACCEPTED, 2026-10-13)
+
+SET-01–SET-08 use Node 22 (minimum 22.12), pnpm 10.30.1, ESM packages and
+compiled shared Zod contracts. Root dev/build/typecheck/test scripts build shared
+contracts before consuming them. React server state uses TanStack Query; unrelated
+map, chart, interaction-state and database dependencies are deferred until needed.
+
+The canonical probe paths are `/health` and `/ready`, matching the task tracker
+and API contract. `/api/v1/status` is the minimal frontend connectivity endpoint.
+Readiness is deliberately 503 until database/dataset/graph initialization is real;
+DATABASE_URL validation does not imply a connection. No pool or migration is
+constructed during foundation startup. The later DB and graph tasks must extend
+the shared schema and readiness service together. Local Vite proxying defaults to
+the API on 3001; frontend port is 5173. No infrastructure paths were changed.
+
+Renamed the verified `ai/` state directory to `.ai/` while preserving its content.
+Existing architecture decisions below remain in force.
+
+---
+
 **Project:** Flood Digital Twin  
 **Challenge:** CL-01 — Flood Risk & Evacuation Planner  
 **File:** `.ai/DECISIONS.md`  

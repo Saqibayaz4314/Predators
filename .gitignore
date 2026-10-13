@@ -46,3 +46,12 @@ Thumbs.db
 .vscode/
 *.swp
 *.swo
+
+# Foundation verification artifacts
+.pnpm-store/
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfplan
+playwright-report/
+test-results/

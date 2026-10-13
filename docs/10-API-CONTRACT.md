@@ -927,6 +927,22 @@ Support:
 
 # 15. Health and Readiness
 
+### Implemented foundation contract (SET-07 / SET-08)
+
+All three foundation endpoints use the shared response envelope and a generated request ID.
+
+- `GET /health`: HTTP 200, `data: { status: "ok" }`. No external dependency checks.
+- `GET /api/v1/status`: HTTP 200, `data: { service: "flood-digital-twin", phase: "foundation", ready: false, checks }`. Used by the frontend connectivity check.
+- `GET /ready`: HTTP 503, error code `SERVICE_NOT_READY`; `error.details.checks` contains the same dependency states.
+
+During the foundation phase, `checks.backend` is `initialized`; `checks.database` is
+`not_configured` when DATABASE_URL is absent, otherwise `not_initialized`.
+`checks.dataset` and `checks.graph` are `not_initialized`. No database connection is
+opened in this phase. Supplying credentials alone never makes the service ready.
+DB and graph tasks must extend the shared schema and readiness service with verified
+dependency checks before readiness can return 200. These status endpoints do not
+claim that flood analysis is available. Other endpoint contracts below remain planned.
+
 ## Liveness
 
 `GET /health`

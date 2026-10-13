@@ -14,7 +14,7 @@ Built with real OpenStreetMap-derived roads, PostgreSQL/PostGIS, graph algorithm
 
 ## Project Status
 
-**Current status:** Development / implementation verification pending.
+**Current status:** Foundation implemented (SET-01–SET-08); verification evidence is maintained in `.ai/HANDOFF.md`. Geographic analysis and deployment remain pending.
 
 The architecture and implementation specifications are prepared. Features, deployment and test results must be verified against the actual repository before being marked complete.
 
@@ -548,9 +548,9 @@ Actual infrastructure paths may differ depending on the existing configuration b
 
 ### Prerequisites
 
-- Node.js compatible with the project's package configuration.
-- pnpm.
-- PostgreSQL database with PostGIS.
+- Node.js 22 LTS (22.12 or newer within major 22).
+- pnpm 10.30.1 (pinned in `package.json`).
+- PostgreSQL with PostGIS is needed for subsequent database tasks, not foundation startup.
 - Git.
 - Required environment variables.
 
@@ -564,30 +564,43 @@ pnpm install
 
 ### Environment setup
 
-Create environment files based on the committed examples once implementation is available.
-
-Expected backend variables may include:
+Defaults start the foundation without environment files or credentials. To customize,
+copy `app/backend/.env.example` to `app/backend/.env` and
+`app/frontend/.env.example` to `app/frontend/.env`.
+Backend variables:
 
 ```dotenv
 DATABASE_URL=
 NODE_ENV=development
+HOST=0.0.0.0
 PORT=3001
-
-AI_ENABLED=false
-AI_API_KEY=
-AI_BASE_URL=
-AI_MODEL=
+CORS_ORIGIN=http://localhost:5173
+LOG_LEVEL=info
 ```
 
 Never commit real credentials.
 
+Frontend configuration is public: `VITE_API_BASE_URL=/api/v1` uses Vite's local
+proxy to `http://127.0.0.1:3001`. An absolute HTTP(S) URL ending in `/api/v1`
+is also supported. If changing the backend port, update the local proxy target in
+`app/frontend/vite.config.ts`. Environment files load from each package directory.
+
 ### Development
 
-The intended monorepo commands are:
+Run both applications and the shared-schema watcher:
 
 ```bash
 pnpm dev
 ```
+
+Open `http://localhost:5173`. The **Service connection** panel fetches
+`/api/v1/status` through the proxy and has a retry action. No map or analytical
+results are implemented yet.
+
+Backend probes: `http://localhost:3001/health` returns 200 without credentials;
+`http://localhost:3001/ready` intentionally returns 503 while PostgreSQL,
+dataset and graph initialization remain unimplemented. DATABASE_URL is validated
+but no connection is opened. Database credentials alone do not imply readiness.
 
 ### Build
 
@@ -601,7 +614,16 @@ pnpm build
 pnpm test
 ```
 
-**Note:** These are intended workspace commands. Verify the actual scripts in `package.json` before using them; implementation may require workspace-specific commands.
+Run `pnpm typecheck` for all packages. Builds run in dependency order and output
+to `packages/shared/dist`, `app/backend/dist`, and `app/frontend/dist`.
+Start the compiled backend with `pnpm --filter @flood/backend start`.
+`pnpm --filter @flood/frontend preview` previews the static build; it is not a
+production web server. Production hosting must route `/api/v1`, `/health`, and
+`/ready` to the backend or provide a build-time public API URL.
+
+If the system pnpm launcher cannot switch to the pinned version, use
+`npm exec --yes --package=pnpm@10.30.1 -- pnpm install` and the same prefix for
+workspace commands. This uses the official npm package without changing the global installation.
 
 ### Geospatial dataset
 

@@ -69,9 +69,29 @@ The final demo must have:
 
 ## Verified runtime defects
 
-**None recorded yet.**
+**Foundation verification completed 2026-10-13.** No unresolved application test failures.
 
-The project documentation has been prepared, but implementation and deployment have not been inspected or tested in this documentation session.
+- **SET-SEC-001 — USER ACTION REQUIRED:** Credentials were concurrently added to
+  `app/backend/.env.example` and surfaced during final file inspection. They were
+  removed from the staged example before commit and preserved in an ignored local
+  environment file. Rotate the affected database password and API key because they
+  appeared in tool output. No database/provider request was made. Do not copy
+  secret values into this issue record or tracked example files.
+
+- **SET-TOOL-001 — WORKAROUND AVAILABLE:** System pnpm 12.5.1 could not resolve
+  its downloaded `@pnpm/exe` for 10.30.1 (`os error 3`). Use the official
+  `npm exec --yes --package=pnpm@10.30.1 -- pnpm <command>` runner. Installation,
+  builds, typecheck and tests succeeded with this runner; global tooling was not changed.
+- **SET-TEST-001 — RESOLVED:** Invalid URL refinements threw `Invalid URL` before
+  sanitized environment validation. Guarded URL parsing; regression tests pass.
+- **SET-TEST-002 — MONITOR:** One initial backend test exceeded the default 5-second
+  timeout during concurrent cold startup. Subsequent full suites passed without
+  changing the timeout (first health test under one second). Recheck on future CI.
+- **DB-01 — UNVERIFIED:** No connection attempted; DATABASE_URL configuration is
+  supported but PostgreSQL/dataset/graph initialization is deferred. `/ready` 503
+  is expected foundation behavior, not evidence of a database outage.
+
+Deployment remains unverified and outside this session's scope.
 
 Do not interpret an empty defect list as proof that the application is bug-free.
 

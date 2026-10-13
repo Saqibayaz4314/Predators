@@ -1,5 +1,73 @@
 # AI AGENT HANDOFF — Flood Digital Twin
 
+## Latest handoff — 2026-10-13
+
+**Tasks:** SET-01–SET-08. **Status:** DONE. **Workstream:** Developer A.
+**Branch:** main (existing initial commit was created during this session).
+
+### Implementation and ownership
+
+- Renamed `ai/` to `.ai/`, preserving all four original documents below their updates.
+- Added root workspace scripts/configuration, lockfile, shared response schemas,
+  frontend shell, backend config/services/routes/server, env examples and tests.
+- Updated README, task tracker, API status contract and canonical probe paths.
+- Developer B's `.github/`, `k8s/`, `terraform/` and Docker configuration were not
+  modified or executed. Original `.gitignore` protections remain intact.
+- A concurrent edit added credentials to the example file. Final review caught them
+  before commit; they were preserved in an ignored local env file and the example
+  was restored to placeholders. Values appeared in inspection output: rotate the
+  affected database password and provider key. No connection was attempted.
+- No database driver, schema, queries, migrations,
+  fabricated map, metrics, route, shelter or flood-analysis implementations were added.
+
+### Verification evidence
+
+Environment: Windows PowerShell, Node v22.17.0, pnpm 10.30.1.
+Commands below used the official runner prefix:
+`npm exec --offline --package=pnpm@10.30.1 -- pnpm` (initial install used `--yes`
+instead of `--offline`). The system pnpm 12.5.1 launcher failed switching versions;
+sandbox network/cache access required tool escalation for the runner.
+
+| Command / procedure | Result |
+|---|---|
+| `pnpm install`, then `pnpm install --offline` | PASSED; 4 workspace projects, lockfile generated |
+| `pnpm build` | PASSED; shared declarations, backend `dist/server.js`, frontend static assets |
+| `pnpm typecheck` | PASSED; all three packages, including test sources |
+| `pnpm test` | PASSED; 16 backend + 4 frontend tests |
+| `pnpm dev` | PASSED; shared watcher, Vite 5173, Fastify 3001 |
+| `node dist/server.js` from `app/backend` | PASSED; compiled backend startup |
+| `Invoke-WebRequest` to backend `/health`, `/ready` and frontend `/api/v1/status` | PASSED; 200, expected 503, 200 respectively |
+| Browser: connection retry, backend stopped, compiled backend started, retry | PASSED; connected → unavailable → connected |
+| Browser screenshots at 1440×900 and 390×844 | PASSED; no horizontal overflow, disclaimer visible, honest empty states |
+
+Initial build caught unsafe access to an unknown Fastify error; fixed with type guards.
+Initial tests caught malformed-URL refinements throwing before safe validation; fixed
+with URL.canParse. One cold-start test exceeded 5 seconds while build/dev processes
+were starting; subsequent complete suites passed without increasing its timeout.
+Fastify's logging deprecation was removed using its documented LogController API.
+Visual review reduced the oversized heading, enlarged supporting text and made the
+retry control at least 44px high, followed by desktop/mobile rechecks.
+
+### Runtime contract and next task
+
+- Backend listens on `0.0.0.0:3001`; Vite serves local port 5173 and proxies API/probes.
+- `/api/v1/status` is foundation connectivity metadata; `/health` is dependency-free.
+- `/ready` remains HTTP 503 until DB/dataset/graph tasks extend the shared status
+  schemas and service with genuine readiness checks. A configured URL is not connectivity.
+- Env files live inside each application package. Defaults require no credentials.
+- Build shared first if running a package directly. Root scripts do this automatically.
+- Next: **DB-01**, then **DB-02**. Read `docs/06-DATABASE-SCHEMA.md`, inspect
+  `app/backend/src/config/env.ts` and `app/backend/src/db/config.ts`. Verify the
+  existing Heroku database with certificate validation and bounded pooling; no new
+  database, destructive operations or imports without the required capacity checks.
+- DB connectivity, schema, spatial tests, routing, full workflow E2E and deployment
+  smoke tests: **NOT RUN**, outside this foundation scope.
+
+The original handoff below is retained as a **historical planning snapshot**.
+Its TODOs and proposed values are superseded by this latest handoff where applicable.
+
+---
+
 **Project:** Flood Digital Twin  
 **Challenge:** CL-01 — Flood Risk & Evacuation Planner  
 **File:** `.ai/HANDOFF.md`  

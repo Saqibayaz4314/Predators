@@ -121,22 +121,27 @@ Developer B must **audit and adapt the existing configuration**, not automatical
 
 | ID | Task | Owner | Priority | Depends on | Status |
 |---|---|---|---|---|---|
-| SET-01 | Initialize repository structure | A | P0 | None | TODO |
-| SET-02 | Configure pnpm monorepo | A | P0 | SET-01 | TODO |
-| SET-03 | Initialize React/Vite frontend | A | P0 | SET-02 | TODO |
-| SET-04 | Initialize Fastify backend | A | P0 | SET-02 | TODO |
-| SET-05 | Configure shared TypeScript package | A | P0 | SET-02 | TODO |
-| SET-06 | Configure environment validation | A | P0 | SET-04 | TODO |
-| SET-07 | Implement `/health` and `/ready` | A | P0 | SET-04 | TODO |
-| SET-08 | Verify local frontend/backend connection | A | P0 | SET-03, SET-04 | TODO |
+| SET-01 | Initialize repository structure | A | P0 | None | DONE |
+| SET-02 | Configure pnpm monorepo | A | P0 | SET-01 | DONE |
+| SET-03 | Initialize React/Vite frontend | A | P0 | SET-02 | DONE |
+| SET-04 | Initialize Fastify backend | A | P0 | SET-02 | DONE |
+| SET-05 | Configure shared TypeScript package | A | P0 | SET-02 | DONE |
+| SET-06 | Configure environment validation | A | P0 | SET-04 | DONE |
+| SET-07 | Implement `/health` and `/ready` | A | P0 | SET-04 | DONE |
+| SET-08 | Verify local frontend/backend connection | A | P0 | SET-03, SET-04 | DONE |
 
 ### Phase A acceptance
 
-- [ ] Frontend starts.
-- [ ] Backend starts.
-- [ ] Shared package resolves.
-- [ ] Health endpoint works.
-- [ ] Environment validation works.
+- [x] Frontend starts.
+- [x] Backend starts.
+- [x] Shared package resolves.
+- [x] Health endpoint works.
+- [x] Environment validation works.
+
+Verified 2026-10-13: install/build/typecheck passed; 20 tests passed; direct and
+proxied HTTP checks and desktop/mobile browser checks passed. `/ready` truthfully
+returns 503 while database/dataset/graph remain uninitialized. See `.ai/HANDOFF.md`
+for commands, initial failures and their fixes. Database verification remains DB-01.
 
 ---
 

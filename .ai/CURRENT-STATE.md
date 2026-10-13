@@ -1,5 +1,37 @@
 # CURRENT STATE — Flood Digital Twin
 
+## Latest verified state — 2026-10-13 (supersedes initial planning record below)
+
+- **Phase:** Foundation complete; SET-01 through SET-08 verified DONE.
+- **Audit:** `app/` was empty; no package manager, lockfile, TypeScript configuration
+  or application packages existed. `ai/` contained all four state files and was
+  renamed to `.ai/` with its content preserved. An initial commit appeared during
+  work; its `.gitignore` exclusions were preserved and extended.
+- **Implemented:** pnpm 10.30.1 workspace; Node 22; shared Zod envelopes;
+  React/Vite/Tailwind ATLAS shell; TanStack Query connectivity/retry;
+  Fastify API, environment validation, restricted local CORS and safe errors.
+- **Runtime:** frontend 5173, backend 3001 / `0.0.0.0`, API `/api/v1`.
+  `/health` = 200; `/api/v1/status` = 200; `/ready` = 503 with explicit
+  uninitialized database/dataset/graph checks. DATABASE_URL is optional and
+  validated; no database connection or migration has been attempted.
+- **PASSED:** dependency installation, shared/backend/frontend builds,
+  all-package typecheck, 16 backend tests + 4 frontend tests, HTTP probes,
+  Vite API proxy, compiled backend startup, browser connection failure/recovery,
+  desktop 1440×900 and mobile 390×844 visual inspection (no horizontal overflow).
+- **NOT RUN / not implemented:** Heroku connectivity, PostGIS/schema, OSM import,
+  routing, flood analysis, shelter calculations, full map, AI, Docker, deployment.
+- **Preserved:** AGENTS.md and all infrastructure contents; no edits or execution
+  of Terraform, Kubernetes, GitHub Actions or Docker configuration.
+- **Next application task:** DB-01 — securely verify existing Heroku PostgreSQL
+  connectivity, then DB-02 PostGIS. Credentials and capacity remain unverified.
+- **Tooling:** the system pnpm 12 version-switcher failed. The official runner
+  `npm exec --yes --package=pnpm@10.30.1 -- pnpm <command>` works; see handoff.
+
+The remainder is the preserved **initial planning snapshot**, not current
+implementation status. Use the verified state above and `.ai/HANDOFF.md` first.
+
+---
+
 **Project:** Flood Digital Twin  
 **Challenge:** CL-01 — Flood Risk & Evacuation Planner  
 **Status:** Planning Complete — Implementation Not Yet Verified  

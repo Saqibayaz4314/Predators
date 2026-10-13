@@ -1,0 +1,13 @@
+{
+  "name": "flood-digital-twin",
+  "private": true,
+  "packageManager": "pnpm@10.30.1",
+  "engines": { "node": ">=22.12.0 <23" },
+  "scripts": {
+    "dev": "pnpm --filter @flood/shared build && pnpm -r --parallel dev",
+    "build": "pnpm -r build",
+    "typecheck": "pnpm --filter @flood/shared build && pnpm -r typecheck",
+    "test": "pnpm --filter @flood/shared build && pnpm -r test"
+  },
+  "devDependencies": { "typescript": "~5.9.3", "@types/node": "^22.19.0", "vitest": "^3.2.4" }
+}

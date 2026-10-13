@@ -1662,8 +1662,8 @@ Maintain a previous working deployment image for rapid rollback.
 
 Recommended:
 
-- `/health/live`
-- `/health/ready`
+- `/health` (implemented foundation liveness; canonical API contract)
+- `/ready` (implemented foundation readiness; canonical API contract)
 
 Liveness means the process can respond.
 
