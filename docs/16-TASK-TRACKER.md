@@ -151,9 +151,9 @@ for commands, initial failures and their fixes. Database verification remains DB
 
 | ID | Task | Owner | Priority | Depends on | Status |
 |---|---|---|---|---|---|
-| DB-01 | Verify Heroku PostgreSQL connection | A | P0 | SET-06 | TODO |
-| DB-02 | Verify PostGIS extension | A | P0 | DB-01 | TODO |
-| DB-03 | Implement database migrations | A | P0 | DB-02 | TODO |
+| DB-01 | Verify Heroku PostgreSQL connection | A | P0 | SET-06 | DONE |
+| DB-02 | Verify PostGIS extension | A | P0 | DB-01 | DONE |
+| DB-03 | Implement database migrations | A | P0 | DB-02 | DONE |
 | GEO-01 | Select final study area | A | P0 | None | TODO |
 | GEO-02 | Acquire bounded OSM road data | A | P0 | GEO-01 | TODO |
 | GEO-03 | Normalize road intersections and one-ways | A | P0 | GEO-02 | TODO |
@@ -164,16 +164,17 @@ for commands, initial failures and their fixes. Database verification remains DB
 
 ### Phase B acceptance
 
-- [ ] PostGIS is available.
-- [ ] Migrations succeed.
+- [x] PostGIS is available. (PostGIS 3.6 on PostgreSQL 18.4 — verified 2026-10-13)
+- [x] Migrations succeed. (001_initial_schema.sql applied — 8 tables + all indexes)
 - [ ] Real OSM graph exists.
 - [ ] One-way directionality is correct.
 - [ ] Graph connectivity is measured.
 - [ ] Dataset provenance is recorded.
 
-### Critical risk
-
-If OSM preprocessing becomes a bottleneck, reduce the study-area extent rather than weakening graph correctness.
+DB-01/DB-02/DB-03 verified 2026-10-13: pg Pool with TLS established, PostGIS 3.6
+confirmed, full schema applied to Heroku PostgreSQL 18.4. 17 DB tests pass.
+`/ready` returns 503 with `database: connected, dataset: not_initialized`.
+Next: GEO-01 study area selection, then GEO-02–GEO-05 OSM import.
 
 ---
 

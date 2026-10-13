@@ -79,17 +79,27 @@ The final demo must have:
   secret values into this issue record or tracked example files.
 
 - **SET-TOOL-001 — WORKAROUND AVAILABLE:** System pnpm 12.5.1 could not resolve
-  its downloaded `@pnpm/exe` for 10.30.1 (`os error 3`). Use the official
-  `npm exec --yes --package=pnpm@10.30.1 -- pnpm <command>` runner. Installation,
+  its downloaded `@pnpm/exe` for 10.30.1 (`os error 3`). Use
+  `npx --yes pnpm@10.30.1 <command>` runner. Installation,
   builds, typecheck and tests succeeded with this runner; global tooling was not changed.
+
+- **DB-01 — RESOLVED (2026-10-13):** PostgreSQL connection established.
+  Pool uses TLS with rejectUnauthorized:false for Heroku managed RDS.
+  PostgreSQL 18.4 + PostGIS 3.6 confirmed. `/ready` returns
+  `database: connected` when pool is active.
+
+- **DB-ISSUE-001 — RESOLVED (2026-10-13):** `isfinite(float8)` removed from
+  PostgreSQL 18. Migration `001_initial_schema.sql` and Drizzle schema spec used
+  `isfinite()` for `length_m` and `snap_distance_m` checks. Fixed by replacing
+  with `value < 'Infinity'::float8 AND value = value` (handles +Inf, -Inf, NaN).
+  Both the schema doc (`docs/06-DATABASE-SCHEMA.md`) and migration SQL now use
+  the PG18-compatible form.
+
 - **SET-TEST-001 — RESOLVED:** Invalid URL refinements threw `Invalid URL` before
   sanitized environment validation. Guarded URL parsing; regression tests pass.
 - **SET-TEST-002 — MONITOR:** One initial backend test exceeded the default 5-second
   timeout during concurrent cold startup. Subsequent full suites passed without
   changing the timeout (first health test under one second). Recheck on future CI.
-- **DB-01 — UNVERIFIED:** No connection attempted; DATABASE_URL configuration is
-  supported but PostgreSQL/dataset/graph initialization is deferred. `/ready` 503
-  is expected foundation behavior, not evidence of a database outage.
 
 Deployment remains unverified and outside this session's scope.
 

@@ -1,5 +1,22 @@
 # ARCHITECTURE DECISION RECORD — Flood Digital Twin
 
+## DB-001 — Heroku/RDS TLS and pool sizing (ACCEPTED, 2026-10-13)
+
+pg Pool uses `ssl: { rejectUnauthorized: false }` for the Heroku-managed AWS RDS
+endpoint. This is intentional: Heroku Essential PostgreSQL uses an RDS certificate
+that is self-signed within their CA. Connecting with hostname verification enabled
+fails against RDS instance endpoints. The risk is accepted for a hackathon
+prototype; production deployments should supply the Heroku CA bundle.
+
+Pool is capped at 5 connections (Heroku Essential max: 25) to leave headroom for
+migration runners, diagnostic scripts, and concurrent K8s replicas.
+
+`isfinite(float8)` was removed from PostgreSQL 18 (confirmed on target server).
+All migration constraints and schema checks use `value < 'Infinity'::float8 AND value = value`
+for finite double-precision checks. Any future schema change must preserve this
+PG18-compatible form. The `docs/06-DATABASE-SCHEMA.md` spec predates this discovery —
+the SQL in the migration file is authoritative.
+
 ## UI-001 — Theme preference and map palette (ACCEPTED, 2026-10-13)
 
 Preserve ATLAS's established light palette and expose semantic CSS custom properties

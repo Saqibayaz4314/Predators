@@ -1,29 +1,108 @@
 # AI AGENT HANDOFF — Flood Digital Twin
 
-## Latest frontend enhancement — UI-01 themes
+## Latest handoff — 2026-10-13 (DB-01/DB-02/DB-03)
 
-Implemented a persistent, system-aware ATLAS light/dark theme without changing
-backend APIs. Original light canvas/surface colors and teal accent are retained;
-semantic chart and map-overlay variables are defined for a navy dark palette.
-The synchronous head bootstrap avoids first-paint theme mismatch. The accessible
-44px Sun/Moon control switches between explicit themes, and System clears the
-override. Storage failures and cross-tab preference updates are handled.
+**Tasks:** DB-01, DB-02, DB-03. **Status:** DONE. **Workstream:** Developer A.
+**Branch:** main. **Commit:** 5469b96
 
-`app/frontend/src/map-theme.ts` prepares OpenFreeMap Positron/Dark styles and
-concrete overlay colors for UI-03. MapLibre remains uninstalled, so interactive
-style switching is unverified until UI-03. `docs/05-UI-UX-DESIGN.md` describes
-theme and contrast requirements.
+### Summary
 
-Verification on Node 22.17: **24 frontend tests PASSED**, frontend TypeScript
-**PASSED**, Vite production build **PASSED**, including `dist/theme.js` and
-`dist/theme.css`. Tests cover first-paint ordering, system detection and changes,
-localStorage persistence and failures, cross-tab updates, maps and color contrast.
-Browser checks covered light/dark and System reset; 1440×900 and 390×844 had no
-horizontal overflow and controls retained 44px height. The production Vite preview
-served the theme assets and toggle correctly. It showed the expected API-unavailable
-state because it has no production API proxy and the backend was stopped.
+Implemented the full PostgreSQL/PostGIS database foundation:
 
-No API contracts, backend source, map engine, lockfile or infrastructure were changed.
+- **DB-01 (connection):** `app/backend/src/db/connection.ts` — pg Pool with
+  TLS for Heroku (rejectUnauthorized:false per their managed DB requirement),
+  max 5 connections, lifecycle management (getPool/closePool/_resetForTests).
+- **DB-02 (PostGIS verification):** `app/backend/src/db/health.ts` —
+  `checkDatabaseHealth()` runs `SELECT version()` + `SELECT PostGIS_Version()`.
+  PostgreSQL 18.4 + PostGIS 3.6 confirmed on the Heroku-managed RDS instance.
+- **DB-03 (schema + migration):** `app/backend/migrations/001_initial_schema.sql`
+  applied successfully. 8 tables, all GiST + B-tree indexes created.
+- **Drizzle schema:** `app/backend/src/db/schema.ts` — typed Drizzle ORM definitions.
+- **Spatial queries:** `app/backend/src/db/spatial.ts` — parameterized PostGIS SQL
+  for flood intersection, blocked arc IDs, nearest-node snapping, graph loading.
+- **Repositories:** `app/backend/src/db/repositories.ts` — typed CRUD for
+  dataset_versions, study_areas, flood_scenarios, shelters.
+- **Phase D:** `/ready` now async — probes real DB, returns 200 only when
+  database+PostGIS+dataset+graph all pass.
+- **Scripts:** `scripts/run-migration.mjs`, `scripts/inspect-db.mjs`.
+
+### Verified
+
+| Command / procedure | Result |
+|---|---|
+| `pnpm typecheck` (all packages) | PASSED |
+| `pnpm build` backend | PASSED |
+| `pnpm test` backend (33 tests) | PASSED — including 8 DB integration tests |
+| `pnpm test` frontend (24 tests) | PASSED |
+| `node scripts/inspect-db.mjs` | PASSED — PostgreSQL 18.4, PostGIS 3.6, tables confirmed |
+| `node scripts/run-migration.mjs` | PASSED — 8 tables created |
+| `/health` HTTP probe | PASSED — 200 |
+| `/ready` HTTP probe | PASSED — 503 (`database: connected, dataset: not_initialized`) |
+| DB integration: pool connect | PASSED |
+| DB integration: PostGIS version | PASSED — PostGIS 3.6 |
+
+### Important discoveries
+
+- `isfinite(float8)` was **removed in PostgreSQL 18**. Migration uses
+  `length_m < 'Infinity'::float8 AND length_m = length_m` instead.
+  The Drizzle schema does **not** enforce this check inline — it applies
+  at the database level only through the migration.
+- The Heroku database is actually AWS RDS eu-west-1 (`*.rds.amazonaws.com`).
+  SSL is required; rejectUnauthorized:false is appropriate for Heroku-managed certs.
+- Database was clean before migration — only `spatial_ref_sys` existed.
+- DB integration tests load credentials from `app/backend/.env` via dotenv.
+  They are SKIPPED automatically when DATABASE_URL is absent.
+
+### Security status
+
+- **SET-SEC-001 (credential rotation):** Still required. Credentials appeared in
+  a previous session's tool output. No new credential exposure occurred in this
+  session. Do not copy them to any file.
+
+### Files changed
+
+- `app/backend/package.json` — added `pg`, `drizzle-orm`; devDep `@types/pg`
+- `app/backend/src/db/config.ts` — updated to return `DatabaseConfig | null`
+- `app/backend/src/db/connection.ts` — NEW (pg Pool + lifecycle)
+- `app/backend/src/db/health.ts` — NEW (DB + PostGIS health check)
+- `app/backend/src/db/schema.ts` — NEW (Drizzle ORM schema)
+- `app/backend/src/db/spatial.ts` — NEW (parameterized spatial queries)
+- `app/backend/src/db/repositories.ts` — NEW (entity repository functions)
+- `app/backend/src/app.ts` — pool parameter wired in
+- `app/backend/src/server.ts` — pool lifecycle (create on startup, close on signal)
+- `app/backend/src/services/status.ts` — async `getFullReadinessState()`
+- `app/backend/src/routes/status.ts` — async `/ready` with real DB probe
+- `app/backend/migrations/001_initial_schema.sql` — NEW (PG18-compatible migration)
+- `app/backend/scripts/run-migration.mjs` — NEW (safe migration runner)
+- `app/backend/scripts/inspect-db.mjs` — NEW (diagnostic)
+- `app/backend/tests/database.test.ts` — NEW (17 DB tests)
+- `pnpm-lock.yaml` — updated
+
+### Next task
+
+**GEO-01 — Select final study area.**
+
+Read: `docs/07-GEOSPATIAL-DATA-PLAN.md` first.
+
+Recommended study area: a bounded urban region (approx. 10×10 km) with clear
+flood-risk zones, good OSM road coverage, and manageable node count
+(target < 50k nodes for Heroku Essential tier storage).
+Good candidates: Dhaka (Bangladesh), Karachi (Pakistan), Houston (TX, USA),
+New Orleans (LA, USA) — all documented flood risks with dense OSM data.
+
+After GEO-01, proceed to GEO-02 (acquire OSM PBF extract), GEO-03 (normalize),
+GEO-04 (build directed nodes and arcs), GEO-05 (import into PostGIS).
+
+Inspect `app/backend/src/db/schema.ts` and `app/backend/migrations/001_initial_schema.sql`
+before writing the importer to understand the target schema.
+
+### Warnings
+
+- Do NOT reset or truncate `dataset_versions`, `study_areas`, or any other table.
+- Rotate credentials per SET-SEC-001 before any public push.
+- The DB pool singleton resets are test-only (`_resetPoolForTests`).
+- migration runner (`run-migration.mjs`) is idempotent (IF NOT EXISTS) but only
+  safe if the database schema matches. Review before re-running on a schema change.
 
 ---
 

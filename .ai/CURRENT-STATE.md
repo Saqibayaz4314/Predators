@@ -1,41 +1,36 @@
 # CURRENT STATE — Flood Digital Twin
 
-## Latest verified state — 2026-10-13 (supersedes initial planning record below)
+## Latest verified state — 2026-10-13 (DB foundation complete)
+
+- **Phase:** Database foundation complete; DB-01, DB-02, DB-03 verified DONE.
+- **Database:** Heroku PostgreSQL 18.4 + PostGIS 3.6 on AWS RDS eu-west-1.
+- **Schema:** All 8 tables created (dataset_versions, study_areas, road_nodes,
+  road_edges, flood_scenarios, flood_zones, shelters, analysis_runs).
+  All spatial GiST indexes and relational B-tree indexes applied.
+  Migration `001_initial_schema.sql` applied to production database.
+- **Connection:** pg Pool with TLS (rejectUnauthorized:false for Heroku managed
+  DB), max 5 connections, 30s idle timeout, 10s connection timeout.
+- **PostGIS verified:** `checkDatabaseHealth()` returns `ok`, PostGIS 3.6 confirmed.
+- **Readiness:** `/ready` now async — returns 200 only when DB+PostGIS+dataset+graph
+  all pass. Currently returns 503 with `database: connected, dataset: not_initialized`.
+- **Tests:** 57/57 pass (33 backend + 24 frontend). 17 new DB tests cover
+  unit logic + real DB integration (connection, PostGIS, schema introspection).
+- **Discovered:** `isfinite(float8)` removed in PostgreSQL 18 — replaced with
+  `length_m < 'Infinity'::float8 AND length_m = length_m` in migration SQL.
+- **Next task:** GEO-01 (select study area), then GEO-02 (OSM data acquisition),
+  then GEO-05 (import graph into PostGIS using the new schema).
+
+## Previous verified state — 2026-10-13 (Foundation)
 
 - **Phase:** Foundation complete; SET-01 through SET-08 verified DONE.
-- **Latest frontend enhancement:** UI-01 theme extension implemented. Original light
-  surfaces and teal identity are preserved; semantic navy dark palette, accessible
-  Sun/Moon toggle, persisted light/dark choice, system-following default and theme
-  reset are implemented. A blocking local bootstrap applies the theme before React;
-  semantic chart/map overlay colors and a ready OpenFreeMap Positron/Dark style
-  adapter are defined. MapLibre remains unintegrated (UI-03).
-- **Theme verification:** 24 frontend tests passed, including storage/system behavior,
-  pre-paint ordering and WCAG color contrast across text, status, chart and map tokens;
-  production frontend build and typecheck passed. Browser review: dark/light at
-  1440×900 and 390×844; no horizontal overflow.
-- **Audit:** `app/` was empty; no package manager, lockfile, TypeScript configuration
-  or application packages existed. `ai/` contained all four state files and was
-  renamed to `.ai/` with its content preserved. An initial commit appeared during
-  work; its `.gitignore` exclusions were preserved and extended.
-- **Implemented:** pnpm 10.30.1 workspace; Node 22; shared Zod envelopes;
-  React/Vite/Tailwind ATLAS shell; TanStack Query connectivity/retry;
-  Fastify API, environment validation, restricted local CORS and safe errors.
+- **Latest frontend enhancement:** UI-01 theme extension implemented.
 - **Runtime:** frontend 5173, backend 3001 / `0.0.0.0`, API `/api/v1`.
-  `/health` = 200; `/api/v1/status` = 200; `/ready` = 503 with explicit
-  uninitialized database/dataset/graph checks. DATABASE_URL is optional and
-  validated; no database connection or migration has been attempted.
+  `/health` = 200; `/api/v1/status` = 200; `/ready` = 503.
 - **PASSED:** dependency installation, shared/backend/frontend builds,
   all-package typecheck, 16 backend tests + 4 frontend tests, HTTP probes,
   Vite API proxy, compiled backend startup, browser connection failure/recovery,
-  desktop 1440×900 and mobile 390×844 visual inspection (no horizontal overflow).
-- **NOT RUN / not implemented:** Heroku connectivity, PostGIS/schema, OSM import,
-  routing, flood analysis, shelter calculations, full map, AI, Docker, deployment.
-- **Preserved:** AGENTS.md and all infrastructure contents; no edits or execution
-  of Terraform, Kubernetes, GitHub Actions or Docker configuration.
-- **Next application task:** DB-01 — securely verify existing Heroku PostgreSQL
-  connectivity, then DB-02 PostGIS. Credentials and capacity remain unverified.
-- **Tooling:** the system pnpm 12 version-switcher failed. The official runner
-  `npm exec --yes --package=pnpm@10.30.1 -- pnpm <command>` works; see handoff.
+  desktop 1440×900 and mobile 390×844 visual inspection.
+- **Tooling:** pnpm runner: `npx --yes pnpm@10.30.1 -- pnpm <command>`.
 
 The remainder is the preserved **initial planning snapshot**, not current
 implementation status. Use the verified state above and `.ai/HANDOFF.md` first.
