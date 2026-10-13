@@ -73,6 +73,17 @@ The final demo must have:
 
 **Infrastructure adaptation (2026-10-14) — new entries:**
 
+- **CI-ISSUE-001 — RESOLVED (2026-10-14):** First pipeline run: Terraform
+  apply succeeded (VPC/ECR/EKS created, `vpc_id` printed), then the output
+  extraction step failed —
+  `Output "ecr_repository_urls[\"flood-digital-twin-frontend\"]" not found`.
+  Root cause: `terraform output` does not support map-index syntax in the
+  NAME argument and `-raw` only works for string/number/boolean values.
+  Fix: `deploy.yaml` now extracts the ECR map with
+  `terraform output -json | jq -r '.ecr_repository_urls.value[...]'` plus an
+  empty-value guard. YAML re-validated; state file and created resources
+  are untouched, so the next run is incremental (no EKS recreation).
+
 - **INFRA-ISSUE-001 — RESOLVED (2026-10-14):** `/ready` hardcoded
   `dataset/graph = false`, so a fresh EKS pod could never pass a readiness
   probe (graph loads lazily — chicken-and-egg). Fixed: `/ready` now reports

@@ -91,9 +91,16 @@ jobs:
           echo "==> Applying Terraform infrastructure (VPC, ECR, EKS)..."
           terraform apply -auto-approve
 
-          ECR_FRONTEND_URL=$(terraform output -raw 'ecr_repository_urls["flood-digital-twin-frontend"]')
-          ECR_BACKEND_URL=$(terraform output -raw 'ecr_repository_urls["flood-digital-twin-backend"]')
+          # Extract map outputs with -json + jq: terraform output does not
+          # support map-index syntax in the NAME argument, and -raw only
+          # works for string/number/boolean values.
+          ECR_FRONTEND_URL=$(terraform output -json | jq -r '.ecr_repository_urls.value["flood-digital-twin-frontend"]')
+          ECR_BACKEND_URL=$(terraform output -json | jq -r '.ecr_repository_urls.value["flood-digital-twin-backend"]')
           CLUSTER_NAME=$(terraform output -raw eks_cluster_name)
+          if [ -z "$ECR_FRONTEND_URL" ] || [ -z "$ECR_BACKEND_URL" ] || [ -z "$CLUSTER_NAME" ]; then
+            echo "::error::Failed to extract required values from Terraform outputs."
+            exit 1
+          fi
           echo "ECR_FRONTEND_URL=$ECR_FRONTEND_URL" >> "$GITHUB_ENV"
           echo "ECR_BACKEND_URL=$ECR_BACKEND_URL" >> "$GITHUB_ENV"
           echo "CLUSTER_NAME=$CLUSTER_NAME" >> "$GITHUB_ENV"
