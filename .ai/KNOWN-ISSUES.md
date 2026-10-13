@@ -1,5 +1,14 @@
 # KNOWN ISSUES & BLOCKER REGISTER
 
+## Shelter/comparison verification — 2026-10-14
+
+- **SHELTER-DATA-001 — BLOCKED (data availability):** Existing PostGIS shelters table contains 0 rows. No source-verified live shelter locations available. Live UI/API return honest empty state. Import requires provenance; no invented facility locations have been inserted. Explicit localhost/test-only in-memory fixtures support demonstration without production writes.
+- **SHELTER-MODEL-001 — DOCUMENTED LIMITATION:** 500 m node snap is a modeled network connection, not a verified physical access path. Road reachability and hypothetical polygon overlap do not certify shelter safety, capacity or operations.
+- **QA-SHELTER-001 — VERIFIED:** invalid/missing coordinates, out-of-radius, directed reachability, scenario closure, unknown, physical deduplication, stale versions and comparison/unreachable states pass. Full working-tree backend136/136; frontend38/38; both browser suites pass.
+- **QA-VISUAL-001 — RESOLVED:** Comparison mobile close control remains visible while scrolling; browser snapshots wait for closure layers and capture modal viewport rather than the entire background page. Light/Dark desktop/mobile rechecked.
+
+
+
 ## Current application verification — 2026-10-14
 
 - **MAP-ISSUE-001 — RESOLVED:** MapLibre 6 has no default ESM export and its worker must be explicitly bundled by Vite. Namespace import plus worker URL fixed blank/failed map startup. Production browser loaded worker and 39 vector tiles.

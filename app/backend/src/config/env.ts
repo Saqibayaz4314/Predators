@@ -21,6 +21,10 @@ export const envSchema = z.object({
   CORS_ORIGIN: originSchema.default('http://localhost:5173'),
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent']).default('info'),
   DATABASE_URL: optionalDatabaseUrl,
+  SHELTER_DEMO: z.enum(['true', 'false']).default('false').transform((value) => value === 'true'),
+}).superRefine((env, context) => {
+  if (env.SHELTER_DEMO && env.NODE_ENV === 'production') context.addIssue({ code: z.ZodIssueCode.custom, path: ['SHELTER_DEMO'], message: 'Demo fixtures are prohibited in production' });
+  if (env.SHELTER_DEMO && env.NODE_ENV === 'development' && !['127.0.0.1', '::1', 'localhost'].includes(env.HOST)) context.addIssue({ code: z.ZodIssueCode.custom, path: ['HOST'], message: 'Development fixtures require a localhost binding' });
 });
 export type Env = z.infer<typeof envSchema>;
 

@@ -1,5 +1,16 @@
 # 10 — API CONTRACT & INTEGRATION SPECIFICATION
 
+## Shelter and scenario comparison contracts — implemented 2026-10-14
+
+Schemas: packages/shared/src/accessibility.ts. GET /study-areas/:id/shelters retains items and datasetVersion, adding dataMode (live|hypothetical_demo), maxSnapDistanceMeters=500 and disclaimer. Shelter.location is nullable for invalid/missing stored locations; invalid candidates are preserved as unknown and omitted from the map. Shelter adds nearestNodeId (string|null), snappedPoint, snapDistanceMeters and connectionReason (connected|invalid_coordinates|outside_snap_radius). Capacity remains null if unknown; source and dataStatus are never promoted to verified.
+
+POST /shelters/reachability uses documented request plus optional expectedDatasetVersion. Response adds originNodeId, dataMode, baselineSummary, disclaimer; each item adds baselineStatus, baselineDistanceMeters and reason (network_path_exists|scenario_blocked|baseline_disconnected|invalid_coordinates|outside_snap_radius). Distance is null when unavailable. withinSimulatedFloodZone is an independent PostGIS flag, null for invalid locations. Empty live data means0evaluated candidates, not0operational facilities.
+
+POST /analysis/compare implements API-014 with up to3unique same-area active scenarios, required originNodeId, optional destinationNodeId and expectedDatasetVersion. Response includes baselineRouteStatus/distance, baselineShelterSummary, shelterCount/dataMode; each scenario includes title, affected physical segments/percentage, blockedDirectedArcs, routeStatus (reachable|unreachable|baseline_unreachable|not_requested), routeDistanceMeters, absolute/percentage changes, shelter counts and uniqueBlockedPhysicalSegmentIds/sharedBlockedPhysicalSegmentIds. closures contains unionPhysicalSegmentIds, sharedByAllPhysicalSegmentIds and pairwise intersections. Sets are physical-ID deduplicated and sorted; all IDs remain strings. Delta fields are null for unavailable routes; percentage null at zero baseline. Active version checked before and after analysis; stale expectations return409. Invalid batches return400; missing nodes/scenarios404, cross-area scenario409.
+
+SHELTER_DEMO is server configuration, not a client input. Defaultfalse, forbidden in production, localhost-only development. Fixtures are in-memory and explicitly hypothetical; no data import or fixture write endpoint exists. Existing route API contracts are preserved.
+
+
 ## Implementation verification — 2026-10-14
 
 Core study-area/list/detail/roads/scenarios, scenario/detail/zones/impact and snap/route/compare endpoints match shared Zod contracts in packages/shared/src/geospatial.ts. Actual real-data responses validated by app/backend/scripts/verify-demo.mjs. Road FeatureCollections contain one representative geometry per physical segment; zone response metadata carries active datasetVersion. Graph BIGINT IDs remain JSON strings; unreachable returns null distance/geometry and explicit outcome. Dataset conflicts retain 409 and domain error codes. No shelter API completion is claimed.

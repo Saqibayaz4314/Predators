@@ -17,6 +17,29 @@
 import type { RoadGraph, GraphArc } from './graph.js';
 import { MinHeap } from './heap.js';
 
+/** Single-source distances for multiple destinations; preserves directed closures. */
+export function singleSourceDistances(graph: RoadGraph, originNodeId: string, blockedArcIds: ReadonlySet<string>): ReadonlyMap<string, number> {
+  if (!graph.nodes.has(originNodeId)) throw Object.assign(new Error('Origin not found'), { statusCode: 404, code: 'ORIGIN_NODE_NOT_FOUND' });
+  const distances = new Map<string, number>([[originNodeId, 0]]);
+  const settled = new Set<string>();
+  const heap = new MinHeap();
+  heap.push({ nodeId: originNodeId, dist: 0 });
+  while (!heap.isEmpty) {
+    const current = heap.pop()!;
+    if (settled.has(current.nodeId)) continue;
+    settled.add(current.nodeId);
+    for (const arc of graph.adjacency.get(current.nodeId) ?? []) {
+      if (blockedArcIds.has(arc.id) || settled.has(arc.targetNodeId)) continue;
+      const next = current.dist + arc.lengthMeters;
+      if (next < (distances.get(arc.targetNodeId) ?? Infinity)) {
+        distances.set(arc.targetNodeId, next);
+        heap.push({ nodeId: arc.targetNodeId, dist: next });
+      }
+    }
+  }
+  return distances;
+}
+
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------

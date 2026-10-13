@@ -1,0 +1,16 @@
+{
+  "status": "PASSED",
+  "liveBase": "http://127.0.0.1:4175",
+  "demoBase": "http://127.0.0.1:4176",
+  "results": [
+    {
+      "check": "Live empty shelter directory, desktop light/dark A/B/C, actual API metrics, modal keyboard close, old reroute and unreachable fixtures",
+      "status": "PASSED"
+    },
+    {
+      "check": "Isolated hypothetical fixtures, reachable/unreachable/unknown, shelter destination routing, mobile light/dark comparison, no overflow, failure/retry",
+      "status": "PASSED"
+    }
+  ],
+  "errors": []
+}

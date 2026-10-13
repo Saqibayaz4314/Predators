@@ -1,5 +1,12 @@
 # 16 — TASK TRACKER & EXECUTION CONTROL
 
+## Shelter and A/B/C milestone — 2026-10-14
+
+SHELTER-02..08 DONE: 500m validated connection policy, read-only directory, single-source baseline/scenario reachability, explicit reasons/flood flags, selectable map markers, inspector counts/details and tests. SHELTER-01 BLOCKED: existing live shelter table has0rows and no verified locations are available to import. Hypothetical test/development fixtures are explicitly labeled, localhost-only and never written to the database. Do not mark live import complete.
+
+EXTRA-01 DONE as explicitly assigned Phase2: responsive A/B/C comparison with actual PostGIS counts, valid routing deltas/states, shelter summaries and unique/shared closure sets. Full working-tree backend136/136 and frontend38/38 PASSED; typechecks/builds, real-data API verifier and both production-preview browser suites PASSED. Native modal/touch/Light/Dark/mobile layouts inspected. QA-04 still IN_REVIEW for the Cypress-specific deliverable; Playwright now covers shelter scenarios. Broad accessibility and public deployment gates remain open. Next: verified shelter provenance and controlled import, then deployment smoke tests.
+
+
 ## Verified application milestone — 2026-10-14
 
 FLOOD-01..08, API-01..10 and UI-01..12 DONE: existing real dataset/scenarios validated without reseeding, secure DB TLS, PostGIS physical-segment deduplication and all-arcs blocking, real routes/snaps, shared schemas, map/impact UI and both themes. Backend 119/119, frontend 33/33, typechecks/builds, real API demo and production-preview Playwright workflow PASSED. QA-01..03/05..08/12 and DOC-05 DONE. DEMO-01 covers the stable flood reroute/unreachable fixtures; full shelter-inclusive demo remains pending.
@@ -332,14 +339,14 @@ No emoji anywhere in the application UI. Use Lucide icons and SVG map markers.
 
 | ID | Task | Owner | Priority | Depends on | Status |
 |---|---|---|---|---|---|
-| SHELTER-01 | Import shelter candidates | A | P0 | DB-03 | TODO |
-| SHELTER-02 | Validate shelter graph connections | A | P0 | GEO-06, SHELTER-01 | TODO |
-| SHELTER-03 | Implement shelter-list endpoint | A | P0 | SHELTER-01 | TODO |
-| SHELTER-04 | Implement reachability algorithm | A | P0 | ROUTE-03, FLOOD-05 | TODO |
-| SHELTER-05 | Implement reachability endpoint | A | P0 | SHELTER-04 | TODO |
-| SHELTER-06 | Render shelter map markers | A | P0 | UI-03, SHELTER-03 | TODO |
-| SHELTER-07 | Display reachability statuses | A | P0 | SHELTER-05, UI-10 | TODO |
-| SHELTER-08 | Write shelter tests | A | P0 | SHELTER-04 | TODO |
+| SHELTER-01 | Import shelter candidates | A | P0 | DB-03 | BLOCKED |
+| SHELTER-02 | Validate shelter graph connections | A | P0 | GEO-06, SHELTER-01 | DONE |
+| SHELTER-03 | Implement shelter-list endpoint | A | P0 | SHELTER-01 | DONE |
+| SHELTER-04 | Implement reachability algorithm | A | P0 | ROUTE-03, FLOOD-05 | DONE |
+| SHELTER-05 | Implement reachability endpoint | A | P0 | SHELTER-04 | DONE |
+| SHELTER-06 | Render shelter map markers | A | P0 | UI-03, SHELTER-03 | DONE |
+| SHELTER-07 | Display reachability statuses | A | P0 | SHELTER-05, UI-10 | DONE |
+| SHELTER-08 | Write shelter tests | A | P0 | SHELTER-04 | DONE |
 
 ### Phase G acceptance
 
@@ -524,7 +531,7 @@ CICD-05+ need the `DATABASE_URL` GitHub secret and a real run (see
 | AI-03 | Implement AI provider adapter | A | P1 | AI-02 | TODO |
 | AI-04 | Validate AI output | A | P1 | AI-03 | TODO |
 | AI-05 | Integrate explanation panel | A | P1 | AI-04, UI-10 | TODO |
-| EXTRA-01 | Cross-scenario comparison | A | P2 | FLOOD-07 | TODO |
+| EXTRA-01 | Cross-scenario comparison | A | P2 | FLOOD-07 | DONE |
 | EXTRA-02 | Downloadable analysis report | A | P2 | API-05 | TODO |
 
 ### Rule

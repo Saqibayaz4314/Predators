@@ -1,6 +1,19 @@
 # CURRENT STATE — Flood Digital Twin
 
-## Latest verified state — 2026-10-14 (Real map vertical slice)
+## Latest verified state — 2026-10-14 (Shelter accessibility and A/B/C)
+
+- **Implemented:** SHELTER-02..08 and EXTRA-01. Existing workspace preserved; commit 40a003d remains in history. No push, merge, reset, database insert/reset or infrastructure change by this workstream.
+- **Live shelter data:** read-only inspection found zero records, so directory/inspector honestly report no verified data. SHELTER-01 remains BLOCKED on a source-verified dataset; no imported real shelter locations are claimed.
+- **Demo isolation:** four clearly hypothetical in-memory destinations (three on real OSM nodes, one missing location), enabled only by SHELTER_DEMO=true in test or localhost-bound development. Production rejects the flag. Capacity and operational status remain unknown. No database writes.
+- **Accessibility:** 500 m maximum snap, active graph/version validation, single-source Dijkstra for baseline/scenario, reachable/unreachable/unknown with reasons, separate PostGIS flood-location flag. Selectable semantic MapLibre markers and inspector details; route to the snapped network connection.
+- **A/B/C:** deterministic closure/arc counts, valid route deltas, shelter summaries and physical-ID overlap. Node 529→806: baseline 4,417.8 m; A 4,853.0 m (+9.85%); B 4,981.7 m (+12.76%); C unreachable. Union 4,176 physical closures; A/B shared 10, A/C 0, B/C 16; none shared by all.
+- **PASSED:** focused backend 16/16; full working-tree backend 136/136 (includes concurrent status regression); frontend 38/38; typechecks and builds; real-data API verifier (rows unchanged); original production browser suite and new desktop/mobile Light/Dark shelter/comparison suite, zero page errors. Final screenshots inspected.
+- **Review:** live-data preview http://127.0.0.1:4175 (backend 3002); hypothetical-only preview http://127.0.0.1:4176 (backend 3003). Existing 3001/4173 processes preserved. These are local previews, not deployment verification.
+- **Concurrent work:** status route/service, database test and status schema edits predated this task and were preserved. Do not fold them into this feature commit or reset them.
+- **Next:** obtain source-verified shelter data and review its provenance before import; then public deployment smoke tests and broader accessibility audit. AI Decision Brief, hospitals and 3D maps remain out of scope.
+
+
+## Previous verified state — 2026-10-14 (Real map vertical slice)
 
 - **Completed:** FLOOD-01..08, API-01..10, UI-01..12; real PostGIS/OSM scenario analysis and MapLibre workspace. Existing scenarios verified; no reseeding or base-graph mutation.
 - **Dataset:** sukkur-osm-2026-10-v1; 11,940 nodes, 29,448 arcs, 15,152 physical segments. Three scenarios contain four flood zones in total.

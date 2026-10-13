@@ -9,7 +9,8 @@
     "preview": "vite preview --host 127.0.0.1",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "test:browser": "node scripts/verify-browser.mjs"
+    "test:browser": "node scripts/verify-browser.mjs",
+    "test:browser:accessibility": "node scripts/verify-accessibility-browser.mjs"
   },
   "dependencies": {
     "@flood/shared": "workspace:*",

@@ -21,11 +21,11 @@ it('reinstalls every overlay after a basemap style clears sources and layers', (
   const layers = new Map<string, Record<string, unknown>>();
   const map = { getStyle: () => ({}), getSource: (id: string) => sources.get(id), addSource: (id: string) => sources.set(id, { setData: vi.fn() }), getLayer: (id: string) => layers.get(id), addLayer: (layer: Record<string, unknown>) => layers.set(layer.id as string, layer) } as unknown as MapLibreMap;
   installMapLayers(map, { ...empty, roads, affectedIds: ['1'] });
-  expect(sources.size).toBe(6);
+  expect(sources.size).toBe(7);
   expect([...layers.keys()]).toEqual(expect.arrayContaining(['atlas-flood', 'atlas-roads', 'atlas-closures', 'atlas-baseline', 'atlas-scenario', 'atlas-endpoints']));
   sources.clear(); layers.clear();
   installMapLayers(map, { ...empty, roads, affectedIds: ['2'] });
-  expect(sources.size).toBe(6);
+  expect(sources.size).toBe(7);
   expect([...layers.keys()]).toEqual(expect.arrayContaining(['atlas-flood', 'atlas-roads', 'atlas-closures', 'atlas-baseline', 'atlas-scenario', 'atlas-endpoints']));
   expect(layers.get('atlas-baseline')?.paint).toMatchObject({ 'line-dasharray': [2, 2] });
 });

@@ -8,6 +8,7 @@ import { registerStatusRoutes } from './routes/status.js';
 import { registerRoutingRoutes } from './routes/routing.js';
 import { registerScenarioRoutes } from './routes/scenarios.js';
 import { registerStudyAreaRoutes } from './routes/studyAreas.js';
+import { registerAccessibilityRoutes } from './routes/accessibility.js';
 
 export function buildApp(env: Env, pool: pg.Pool | null = null) {
   const app = Fastify({
@@ -47,6 +48,7 @@ export function buildApp(env: Env, pool: pg.Pool | null = null) {
         await registerRoutingRoutes(sub, pool);
         await registerScenarioRoutes(sub, pool);
         await registerStudyAreaRoutes(sub, pool);
+        await registerAccessibilityRoutes(sub, pool, env);
       }, { prefix: '/api/v1' })
     );
   }

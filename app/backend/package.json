@@ -14,7 +14,8 @@
     "geo:seed": "node scripts/seed_scenarios.mjs",
     "db:migrate": "node scripts/run-migration.mjs",
     "db:inspect": "node scripts/inspect-db.mjs",
-    "demo:verify": "node scripts/verify-demo.mjs"
+    "demo:verify": "node scripts/verify-demo.mjs",
+    "accessibility:verify": "node scripts/verify-accessibility.mjs"
   },
   "dependencies": {
     "@fastify/cors": "^11.1.0",

@@ -1,5 +1,12 @@
 # 05 — UI/UX DESIGN SYSTEM & EXPERIENCE BLUEPRINT
 
+## Shelter and A/B/C workspace addition — 2026-10-14
+
+Keep the existing ATLAS shell/map interactions. Impact Inspector adds an honest empty live directory and a compact selectable candidate list with source status, network reason, unknown capacity/operations, baseline/scenario access and separate flood-zone flag. Semantic shelter markers distinguish reachable, unreachable and unknown with color plus symbols/text; missing coordinates create no marker. Connected candidates can route to their snapped road node. Clearly hypothetical fixtures appear only in isolated development mode and carry visible labels/disclaimers.
+
+Scenario Lab launches a native focus-trapping A/B/C dialog: same point/dataset context, three scenario columns on desktop and stacked cards on mobile, baseline, closure/arc counts, valid route distances/deltas, shelter access and shared/unique physical closures. Native Escape/close restores focus; header close control stays visible while scrolling. Selecting Inspect on map closes the view and activates that existing scenario without losing origin/destination. Missing origin/destination, empty data, loading/error/retry and unreachable states are explicit. Desktop1440×900 and mobile390×844 Light/Dark browser checks and screenshot review passed; original map workflow also passes1280×800 regression.
+
+
 ## Implemented workspace verification — 2026-10-14
 
 ATLAS now renders real MapLibre layers and backend route/impact results. Existing light theme and navy dark theme retain semantic colors, persistent/system preference and pre-paint bootstrap. OpenFreeMap Liberty/Dark switch with custom overlays restored after style load. Simulated polygons are blue, affected roads red, baseline dashed blue and scenario route solid green. Loading/error/retry/empty/unreachable states are explicit. Origin/destination support real snap API via map, accessible center picker and coordinates. Desktop 1440×900/1280×800 and mobile 390×844 production-preview browser checks passed; final screenshots inspected in app/frontend/artifacts/. Full shelter workflows and broad accessibility audit remain pending.

@@ -1,5 +1,14 @@
 # ARCHITECTURE DECISION RECORD — Flood Digital Twin
 
+## SHELTER-001 — Empty live data and isolated hypothetical fixtures (ACCEPTED, 2026-10-14)
+
+No verified shelter rows exist. Do not seed the live database with invented facilities. SHELTER_DEMO defaults false, is rejected in production and requires localhost binding in development. Fixtures exist only in memory and clearly label hypothetical graph destinations; capacity/operations remain unknown. Live API keeps an honest empty directory. Locations may be null if invalid so unknown candidates survive without invalid map markers. Connections are recomputed within500m against the active graph; no stored association is silently reused across versions. Polygon intersection remains a separate spatial flag.
+
+## ANALYSIS-001 — Single-source deterministic A/B/C (ACCEPTED, 2026-10-14)
+
+Extend the existing MinHeap/Dijkstra engine with single-source distances for multiple shelter destinations. Share one baseline traversal and run one traversal per compared scenario using existing PostGIS-derived blocked arcs. Never mutate the graph. Compare up to three unique, validated scenarios; check active dataset before and after computation. Return null deltas for absent/unreachable routes and null percentage at zero baseline distance. Physical closures use deduplicated sorted sets with explicit unique, shared-with-any, shared-by-all and pairwise definitions. Native focus-trapping comparison dialog preserves the map's point/route selection and semantic themes.
+
+
 ## DB-002 — Verified database TLS (ACCEPTED, 2026-10-14)
 
 Supersedes DB-001's insecure TLS exception. Require rejectUnauthorized:true and hostname verification. Remove SSL query parameters before passing pg's explicit SSL settings. RDS endpoints trust the public AWS global bundle from https://truststore.pki.rds.amazonaws.com/global/global-bundle.pem, compiled as source so runtime builds carry it. Other endpoints use system trust or an explicit DATABASE_CA_CERT. Pool remains bounded at five connections. Actual target chain/hostname and full DB suite PASSED.

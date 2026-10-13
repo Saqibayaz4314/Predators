@@ -1,5 +1,6 @@
 import { z } from 'zod';
 export * from './geospatial.js';
+export * from './accessibility.js';
 
 export const apiMetaSchema = z.object({
   requestId: z.string().min(1),

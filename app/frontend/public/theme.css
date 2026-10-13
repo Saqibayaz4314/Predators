@@ -1,5 +1,7 @@
 /* ATLAS semantic palette. Loaded before the application and theme bootstrap. */
 :root {
+  --atlas-overlay-scrim: rgb(14 30 40 / 55%);
+  --atlas-shadow: rgb(14 30 40 / 22%);
   color-scheme: light;
   --atlas-canvas: #F4F6F5;
   --atlas-surface: #FFFFFF;
@@ -47,6 +49,8 @@
 }
 
 :root[data-theme="dark"] {
+  --atlas-overlay-scrim: rgb(2 8 16 / 75%);
+  --atlas-shadow: rgb(0 0 0 / 35%);
   color-scheme: dark;
   --atlas-canvas: #0C1624;
   --atlas-surface: #132235;

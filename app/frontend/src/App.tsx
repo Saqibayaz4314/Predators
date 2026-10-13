@@ -1,6 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { CircleHelp, Layers, SlidersHorizontal, Route, MapPin, Navigation, RotateCcw, ArrowRight, AlertTriangle, CheckCircle2, LoaderCircle } from 'lucide-react';
+import { CircleHelp, Layers, SlidersHorizontal, Route, MapPin, Navigation, RotateCcw, ArrowRight, AlertTriangle, CheckCircle2, LoaderCircle, Columns3 } from 'lucide-react';
+import type { Shelter } from '@flood/shared';
+import { getShelters, getShelterReachability } from './accessibility-api';
+import { ShelterInspector } from './ShelterInspector';
+import { ScenarioComparison } from './ScenarioComparison';
 import { ThemeToggle } from './ThemeToggle';
 import { GeographicMap } from './GeographicMap';
 import { useWorkspace, type PointRole } from './workspace-store';
@@ -14,6 +18,8 @@ function ErrorNotice({ message, retry }: { message: string; retry: () => void })
 export function App({ apiBaseUrl }: { apiBaseUrl: string }) {
   const client = useQueryClient();
   const state = useWorkspace();
+  const [comparisonOpen, setComparisonOpen] = useState(false);
+  const [selectedShelterId, setSelectedShelterId] = useState<string | null>(null);
   const [snapError, setSnapError] = useState('');
   const [snapping, setSnapping] = useState(false);
   const [coordinates, setCoordinates] = useState({ longitude: '68.875', latitude: '27.708' });
@@ -28,6 +34,10 @@ export function App({ apiBaseUrl }: { apiBaseUrl: string }) {
   const scenarioId = state.scenarioId;
   const selectedScenario = scenarios.data?.scenarios.find((scenario) => scenario.id === scenarioId);
   const scenarioValid = scenarioId === 'baseline' || Boolean(selectedScenario);
+  const originValid = Boolean(area && state.origin?.datasetVersion === area.datasetVersion);
+  const shelters = useQuery({ queryKey: ['shelters', ...scope], enabled: Boolean(area), queryFn: ({ signal }) => getShelters(apiBaseUrl, area!, signal), staleTime: 300_000 });
+  const shelterAccess = useQuery({ queryKey: ['shelter-access', ...scope, scenarioId, state.origin?.nodeId], enabled: originValid && scenarioValid, queryFn: ({ signal }) => getShelterReachability(apiBaseUrl, area!, scenarioId, state.origin!.nodeId, signal), staleTime: 300_000 });
+  const shelterResult = originValid && scenarioValid ? shelterAccess.data : undefined;
   const layers = useQuery({ queryKey: ['scenario-layers', ...scope, scenarioId], enabled: Boolean(area && selectedScenario), queryFn: ({ signal }) => getScenarioLayers(apiBaseUrl, area!, scenarioId, signal), staleTime: 300_000 });
   const pointsValid = Boolean(area && state.origin && state.destination && state.origin.datasetVersion === area.datasetVersion && state.destination.datasetVersion === area.datasetVersion);
   const routes = useQuery({
@@ -41,7 +51,14 @@ export function App({ apiBaseUrl }: { apiBaseUrl: string }) {
     roads: roads.data, zones: selectedScenario ? layers.data?.zones : undefined, affectedIds: impact?.affectedPhysicalSegmentIds, routes: result,
     origin: state.origin?.datasetVersion === area?.datasetVersion ? state.origin : null,
     destination: state.destination?.datasetVersion === area?.datasetVersion ? state.destination : null,
-  }), [roads.data, layers.data, impact, result, state.origin, state.destination, selectedScenario, area?.datasetVersion]);
+    shelters: shelters.data, shelterAccess: shelterResult, selectedShelterId,
+  }), [roads.data, layers.data, impact, result, state.origin, state.destination, selectedScenario, area?.datasetVersion, shelters.data, shelterResult, selectedShelterId]);
+  function routeToShelter(shelter: Shelter) {
+    if (!area || !originValid || !shelter.nearestNodeId || !shelter.snappedPoint || shelter.snapDistanceMeters == null) return;
+    pendingSnap.current?.abort(); setSnapping(false); setSnapError('');
+    state.setPoint('destination', { nodeId: shelter.nearestNodeId, snappedPoint: shelter.snappedPoint, snapDistanceMeters: shelter.snapDistanceMeters, datasetVersion: area.datasetVersion });
+    state.calculate();
+  }
   const retryWorkspace = () => { void client.invalidateQueries({ predicate: (query) => query.queryKey.includes(apiBaseUrl) }); };
   async function selectMapPoint(point: { longitude: number; latitude: number }) {
     const role = useWorkspace.getState().selecting;
@@ -101,6 +118,7 @@ export function App({ apiBaseUrl }: { apiBaseUrl: string }) {
           {scenarios.isError && <ErrorNotice message={scenarios.error.message} retry={() => void scenarios.refetch()} />}
           {scenarios.isSuccess && scenarios.data.scenarios.length === 0 && <p>No active flood simulations are available.</p>}
           {selectedScenario?.description && <p className="scenario-description">{selectedScenario.description}</p>}
+          <button className="secondary-button" disabled={!area || !scenarios.data?.scenarios.length} onClick={() => setComparisonOpen(true)}><Columns3 size={16} />Compare scenarios A/B/C</button>
         </section>
         <section className="route-controls" aria-labelledby="route-heading"><div className="section-heading"><Route size={17} /><h3 id="route-heading">Route analysis</h3><button className="icon-button" onClick={clearRoute} aria-label="Clear route selections"><RotateCcw size={16} /></button></div>
           {(['origin', 'destination'] as const).map((role) => <button key={role} className="point-button" aria-pressed={state.selecting === role} onClick={() => choosePoint(role)} disabled={!area || snapping}>{role === 'origin' ? <MapPin size={18} /> : <Navigation size={18} />}<span><strong>{role === 'origin' ? 'Origin' : 'Destination'}</strong><small>{state[role] ? `Node ${state[role].nodeId} · snapped ${Math.round(state[role].snapDistanceMeters)} m` : 'Choose on map'}</small></span><ArrowRight size={16} /></button>)}
@@ -113,7 +131,7 @@ export function App({ apiBaseUrl }: { apiBaseUrl: string }) {
           <p className="route-note">Shortest modeled network distance. A route result does not establish real-world safety.</p>
         </section>
       </aside>
-      <GeographicMap area={detail.data} data={mapData} selecting={state.selecting} onSelect={(point) => void selectMapPoint(point)} />
+      <GeographicMap area={detail.data} data={mapData} selecting={state.selecting} onSelect={(point) => void selectMapPoint(point)} onShelterSelect={setSelectedShelterId} />
       <aside className="side-panel inspector" aria-labelledby="inspector-heading">
         <div className="panel-title"><Layers size={18} /><h2 id="inspector-heading">Impact Inspector</h2><span className="index">02</span></div>
         <section className="impact-section"><span className="eyebrow">SELECTED CONDITIONS</span><h3>{selectedScenario?.title ?? 'Baseline'}</h3>
@@ -128,9 +146,11 @@ export function App({ apiBaseUrl }: { apiBaseUrl: string }) {
           <dl className="metric-list"><div><dt><i className="legend-line baseline" />Baseline distance</dt><dd>{distance(result?.baseline.distanceMeters)}</dd></div><div><dt><i className="legend-line scenario" />Scenario distance</dt><dd>{scenarioId === 'baseline' ? 'Not applied' : result?.scenario?.status === 'unreachable' ? 'Unreachable' : distance(result?.scenario?.distanceMeters)}</dd></div><div><dt>Distance increase</dt><dd>{result?.distanceChangeMeters != null ? `${distance(result.distanceChangeMeters)}${result.distanceChangePercent != null ? ` (${result.distanceChangePercent}%)` : ''}` : '—'}</dd></div></dl>
           <p className="metric-note">{result?.outcome === 'unreachable' ? 'The baseline path exists, but no route remains after simulated road closures. No connecting route is drawn.' : result?.outcome === 'baseline_unreachable' ? 'These points are disconnected in the original directed network.' : !result ? 'Choose two points and calculate to compare the original network with the selected simulation.' : scenarioId === 'baseline' ? 'No flood simulation is applied to this route.' : result.outcome === 'unchanged' ? 'The baseline path remains available in this simulation.' : 'The scenario route follows the remaining modeled road connections.'}</p>
         </section>
+        <ShelterInspector list={shelters.data} analysis={shelterResult} selectedId={selectedShelterId} onSelect={setSelectedShelterId} onRoute={routeToShelter} originSelected={originValid} busy={shelters.isFetching || (originValid && shelterAccess.isFetching)} error={shelters.error?.message ?? (originValid ? shelterAccess.error?.message : undefined)} retry={() => { void shelters.refetch(); if (originValid) void shelterAccess.refetch(); }} />
         <section className="impact-section data-status"><span className="eyebrow">DATA & METHODOLOGY</span><p>OpenStreetMap-derived roads. PostGIS intersections. Directed-graph Dijkstra routing.</p>{roads.isFetching && <p role="status">Loading road geometry…</p>}{roads.isError && <ErrorNotice message={roads.error.message} retry={() => void roads.refetch()} />}{detail.isError && <ErrorNotice message={detail.error.message} retry={() => void detail.refetch()} />}<button className="secondary-button" onClick={retryWorkspace}><RotateCcw size={14} />Refresh workspace</button></section>
       </aside>
     </main>
+    <ScenarioComparison open={comparisonOpen} onClose={() => setComparisonOpen(false)} apiBaseUrl={apiBaseUrl} area={area} scenarios={scenarios.data?.scenarios ?? []} origin={state.origin} destination={state.destination} onScenario={state.selectScenario} />
     <footer className="statusbar"><span><span className={`status-dot ${roads.isSuccess ? 'connected' : ''}`} />{pending ? 'Loading geographic dataset…' : roads.isSuccess ? `${roads.data.features.length.toLocaleString()} physical road segments loaded` : 'Dataset unavailable'}</span><span>Scenario analysis · Simulated flood extents</span></footer>
   </div>;
 }

@@ -1,10 +1,10 @@
 import type { Map, GeoJSONSource } from 'maplibre-gl';
 import type { FeatureCollection, Feature, Geometry } from 'geojson';
-import type { Roads, Zones, SnapResult } from '@flood/shared';
+import type { Roads, Zones, SnapResult, ShelterList, ShelterReachability } from '@flood/shared';
 import type { RouteResults } from './geospatial-api';
 import { readMapTheme } from './map-theme';
 
-export interface MapData { roads?: Roads; zones?: Zones; affectedIds?: string[]; routes?: RouteResults; origin: SnapResult | null; destination: SnapResult | null }
+export interface MapData { roads?: Roads; zones?: Zones; affectedIds?: string[]; routes?: RouteResults; origin: SnapResult | null; destination: SnapResult | null; shelters?: ShelterList; shelterAccess?: ShelterReachability; selectedShelterId?: string | null }
 const collection = (features: Feature[] = []): FeatureCollection => ({ type: 'FeatureCollection', features });
 const feature = (geometry: Geometry, properties = {}): Feature => ({ type: 'Feature', geometry, properties });
 export function mapCollections(data: MapData) {
@@ -19,6 +19,7 @@ export function mapCollections(data: MapData) {
       const point = data[role]?.snappedPoint;
       return point ? [feature({ type: 'Point', coordinates: [point.longitude, point.latitude] }, { role })] : [];
     })),
+    shelters: collection(data.shelters?.items.flatMap((shelter) => shelter.location ? [feature({ type: 'Point', coordinates: [shelter.location.longitude, shelter.location.latitude] }, { shelterId: shelter.id, name: shelter.name, selected: shelter.id === data.selectedShelterId, status: data.shelterAccess?.items.find((item) => item.shelterId === shelter.id)?.status ?? 'unknown' })] : [])),
   };
 }
 export function installMapLayers(map: Map, data: MapData) {
@@ -54,4 +55,9 @@ export function installMapLayers(map: Map, data: MapData) {
     'circle-radius': 8, 'circle-stroke-width': 3, 'circle-stroke-color': palette.colors.halo,
     'circle-color': ['match', ['get', 'role'], 'origin', palette.colors.origin, palette.colors.destination],
   } });
+  map.addLayer({ id: 'atlas-shelters', source: 'atlas-shelters', type: 'circle', paint: {
+    'circle-radius': ['case', ['get', 'selected'], 11, 8], 'circle-stroke-width': 3, 'circle-stroke-color': palette.colors.halo,
+    'circle-color': ['match', ['get', 'status'], 'reachable', palette.colors.reachableShelter, 'unreachable', palette.colors.unreachableShelter, palette.colors.unknownShelter],
+  } });
+  map.addLayer({ id: 'atlas-shelter-symbol', source: 'atlas-shelters', type: 'symbol', layout: { 'text-field': ['match', ['get', 'status'], 'reachable', '+', 'unreachable', '−', '?'], 'text-size': 13, 'text-allow-overlap': true, 'text-ignore-placement': true }, paint: { 'text-color': palette.colors.halo } });
 }

@@ -1,6 +1,74 @@
 # AI AGENT HANDOFF — Flood Digital Twin
 
-## Latest handoff — 2026-10-14 (Backend stabilization and ATLAS map)
+## Latest handoff — 2026-10-14 (SHELTER-02..08 / EXTRA-01)
+
+**Status:** assigned shelter-accessibility and A/B/C features implemented and verified. SHELTER-01 live import is BLOCKED on verified data availability. Keep changes local; no push or merge authorized.
+
+### Provenance and isolation
+
+Read-only inspection of the existing PostGIS shelters table found **0 rows**. Live endpoints return an empty directory and zero evaluated records; the UI shows **No verified shelter data available**, not zero real-world shelter availability. No verified facility location, capacity, occupancy or operational status is invented.
+
+For an isolated demo only, SHELTER_DEMO=true supplies four in-memory hypothetical records: OSM graph nodes 806, 2814 and 529, plus one deliberately missing location for unknown-status handling. Names/source fields and all UI surfaces say hypothetical fixture, not real shelter. NODE_ENV=production rejects the flag; development requires HOST=127.0.0.1, ::1 or localhost. Default is false. The live and demo servers use separate localhost ports; no fixture is ever inserted into PostGIS. API verification proves the shelter row count is unchanged.
+
+### Accessibility
+
+Connections are recalculated from validated WGS84 coordinates against the active OSM graph using the existing Haversine snap service and an explicit 500 m radius. Stored nearest-node IDs are not trusted across dataset versions. Invalid/missing coordinates or no node within radius produce unknown with a clear reason and null distance; known nodes without paths produce unreachable, distinguishing baseline disconnection from scenario blockage. One single-source Dijkstra map supplies baseline distances and one supplies each active scenario, always excluding blocked directed arcs. PostGIS ST_Intersects independently flags locations within hypothetical flood polygons, including polygon boundaries. That flag does not override network reachability or certify a building's safety.
+
+MapLibre adds a shelter source with status colors/symbols and selectable markers, restored on theme/style changes. The inspector lists candidates, source classification, unknown capacity/operations, baseline/active distances, reason and separate flood flag. Selecting a connected candidate can route to its actual snapped graph node. With no origin, access is shown as not evaluated. Versioned TanStack Query keys and response context checks prevent stale origin/scenario results from being shown.
+
+### Verified results
+
+Live: no shelter data, 0 evaluated candidates. Hypothetical-only origin 11243: baseline 3 reachable / 0 unreachable / 1 unknown; Bridge Corridor scenario 0 reachable / 3 unreachable / 1 unknown. Origin 529 in the rerouting demo gives 3 reachable / 0 unreachable / 1 unknown under B. These are modeled test destinations, not facility availability.
+
+For node 529 → 806, baseline 4,417.8 m:
+
+| Scenario | Physical closures | Blocked arcs | Scenario route | Change |
+|---|---:|---:|---:|---:|
+| A — Localized Flood | 549 | 1,082 | 4,853.0 m | +435.2 m / +9.85% |
+| B — Bridge Corridor Flood | 1,971 | 3,906 | 4,981.7 m | +563.9 m / +12.76% |
+| C — Wide Flood Disruption | 1,682 | 3,283 | Unreachable | null |
+
+Unique physical closures: A 539, B 1,945, C 1,666. Pairwise intersections A/B 10, A/C 0, B/C 16. Union 4,176; shared by all 0. Unique means only this compared scenario; shared means at least one other compared scenario. Lists are deduplicated and sorted. Origin 11243 → 2814 statuses A/B/C are reachable / unreachable / reachable. No destination produces not_requested and null distances/deltas. Zero baseline distance produces null percentage.
+
+### APIs and contract extensions
+
+GET /api/v1/study-areas/:id/shelters; POST /api/v1/shelters/reachability; POST /api/v1/analysis/compare. Contracts in packages/shared/src/accessibility.ts extend the documented shelter APIs with nullable invalid locations, connection/snap/provenance metadata, reason, baseline access, dataMode and disclaimer. Comparison accepts optional expectedDatasetVersion and destination; up to three unique scenarios, all validated in the same study area. It returns baseline/scenario route states, arc counts, valid deltas, shelter summaries and unique/shared/pairwise physical-ID sets. Version checked before and after analysis. Existing routing API shapes unchanged.
+
+### Files
+
+Backend: modules/shelters/{shelterRepository,shelterService,demoFixtures}.ts; modules/analysis/comparisonService.ts; routes/accessibility.ts; app.ts registration; config/env.ts and .env.example demo guard; routing/dijkstra.ts adds singleSourceDistances; tests/accessibility.test.ts; scripts/verify-accessibility.mjs; package scripts.
+Frontend: accessibility-api.ts, ShelterInspector.tsx, ScenarioComparison.tsx, accessibility.test.ts; App.tsx, GeographicMap.tsx, map-layers.ts/test, styles.css and public/theme.css; vite.config.ts optional API_PROXY_TARGET (default 3001 unchanged); scripts/verify-accessibility-browser.mjs; screenshot/report artifacts/accessibility/ and updated original artifacts. No new dependencies.
+Shared: accessibility.ts and its export in index.ts. Preserve the concurrent status-schema changes in that same file.
+
+### Reproduction and checks
+
+From packages/shared: node ../../node_modules/typescript/bin/tsc -p tsconfig.json.
+From app/backend: node ../../node_modules/vitest/vitest.mjs run; node ../../node_modules/typescript/bin/tsc --noEmit; node ../../node_modules/typescript/bin/tsc -p tsconfig.build.json; node scripts/verify-accessibility.mjs. Ignored .env supplies the rotated DB configuration; all verification queries are read-only.
+From app/frontend: node ../../node_modules/vitest/vitest.mjs run; node ../../node_modules/typescript/bin/tsc --noEmit; node node_modules/vite/bin/vite.js build.
+
+Live backend: NODE_ENV=development HOST=127.0.0.1 PORT=3002 SHELTER_DEMO=false node dist/server.js. Demo backend: same with PORT=3003 SHELTER_DEMO=true. Live preview: API_PROXY_TARGET=http://127.0.0.1:3002 vite preview --host 127.0.0.1 --port 4175. Demo preview: target 3003, port 4176. Existing services were not stopped.
+
+The environment notation above lists settings. In PowerShell set them before the command, for example:
+
+```powershell
+$env:NODE_ENV='development'
+$env:HOST='127.0.0.1'
+$env:PORT='3003'
+$env:SHELTER_DEMO='true'
+node dist/server.js
+```
+
+Use separate terminals and ports for live and hypothetical modes. Frontend preview needs `$env:API_PROXY_TARGET='http://127.0.0.1:3003'` set in its own terminal; browser script uses `$env:TEST_BASE_URL` and `$env:TEST_DEMO_BASE_URL`.
+Browser: TEST_BASE_URL=http://127.0.0.1:4175 node scripts/verify-browser.mjs; then TEST_BASE_URL=http://127.0.0.1:4175 TEST_DEMO_BASE_URL=http://127.0.0.1:4176 node scripts/verify-accessibility-browser.mjs. Requires isolated headless Chrome and outbound tile access. Both suites PASSED; zero page errors. Desktop1440×900 and mobile390×844 Light/Dark screenshots inspected; original1280×800 regression also passes. Error/retry, empty live data, hypothetical reachability states, shelter routing, native modal Escape/focus behavior and mobile overflow checked.
+
+Focused backend16/16; full working-tree backend136/136; frontend38/38; typechecks/builds PASSED. Full suite includes a pre-existing concurrent status regression (database18/18 versus prior17). Final localhost/production guard also passed an 8-test focused unit rerun. Vite large MapLibre chunk advisory remains non-blocking. No cloud/deployment smoke checks run here.
+
+### Next work
+
+Acquire verified shelter provenance before any import; keep empty live state until then. Complete deployment smoke checks in the infrastructure workstream and a broad accessibility audit. No AI Decision Brief, hospitals, 3D map or unrelated infrastructure edits in this feature. Preserve commit40a003d and the unrelated dirty status-route/service/test edits. Do not push, merge, reset or delete without user approval.
+
+
+## Previous handoff — 2026-10-14 (Backend stabilization and ATLAS map)
 
 **Tasks:** FLOOD-01..08, API-01..10, UI-01..12. **Status:** DONE for the assigned map/routing vertical slice. Shelter analysis remains TODO.
 
