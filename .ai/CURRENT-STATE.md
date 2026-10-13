@@ -1,24 +1,21 @@
 # CURRENT STATE — Flood Digital Twin
 
-## Latest verified state — 2026-10-13 (DB foundation complete)
+## Latest verified state — 2026-10-13 (GEO import complete)
 
-- **Phase:** Database foundation complete; DB-01, DB-02, DB-03 verified DONE.
-- **Database:** Heroku PostgreSQL 18.4 + PostGIS 3.6 on AWS RDS eu-west-1.
-- **Schema:** All 8 tables created (dataset_versions, study_areas, road_nodes,
-  road_edges, flood_scenarios, flood_zones, shelters, analysis_runs).
-  All spatial GiST indexes and relational B-tree indexes applied.
-  Migration `001_initial_schema.sql` applied to production database.
-- **Connection:** pg Pool with TLS (rejectUnauthorized:false for Heroku managed
-  DB), max 5 connections, 30s idle timeout, 10s connection timeout.
-- **PostGIS verified:** `checkDatabaseHealth()` returns `ok`, PostGIS 3.6 confirmed.
-- **Readiness:** `/ready` now async — returns 200 only when DB+PostGIS+dataset+graph
-  all pass. Currently returns 503 with `database: connected, dataset: not_initialized`.
-- **Tests:** 57/57 pass (33 backend + 24 frontend). 17 new DB tests cover
-  unit logic + real DB integration (connection, PostGIS, schema introspection).
-- **Discovered:** `isfinite(float8)` removed in PostgreSQL 18 — replaced with
-  `length_m < 'Infinity'::float8 AND length_m = length_m` in migration SQL.
-- **Next task:** GEO-01 (select study area), then GEO-02 (OSM data acquisition),
-  then GEO-05 (import graph into PostGIS using the new schema).
+- **Phase:** Phase B complete — GEO-01 through GEO-07 DONE.
+- **Study area:** Sukkur / Rohri, Sindh (slug: sukkur-rohri, lon 68.80–68.97, lat 27.63–27.79)
+- **Dataset version:** sukkur-osm-2026-10-v1 (ODbL — © OpenStreetMap contributors)
+- **Graph (PostGIS):** 11,940 nodes | 29,448 directed arcs | 15,152 physical segments
+- **Connectivity:** 16 components, largest 11,883 nodes (99.5%), 0 isolated nodes
+- **Demo pairs:** pair1 node 11243→2814 (~4499m), pair2 node 4416→2908 (~3500m, Sukkur Barrage)
+- **Validation:** 18/18 topology checks PASSED (validate_graph.mjs)
+- **DB size:** 16.4 MB → 30.6 MB (+14.2 MB road data)
+- **Tests:** 48/48 pass (15 graph + 16 foundation + 17 DB tests)
+- **Scripts:** build_road_graph.py (two-pass, ~13min), import_road_graph.mjs (bulk, ~60s), validate_graph.mjs
+- **TypeScript typecheck:** PASS
+- **dataset_version_id:** cfe6822e-c7f3-4de1-b2e9-f5b56fc5d49e
+- **study_area_id:** 020ce29e-ec4f-4514-b14f-58c1252191cc
+- **Next task:** ROUTE-01 — TypeScript adjacency graph loader + Dijkstra engine
 
 ## Previous verified state — 2026-10-13 (Foundation)
 

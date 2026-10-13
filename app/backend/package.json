@@ -8,7 +8,11 @@
     "build": "tsc -p tsconfig.build.json",
     "start": "node dist/server.js",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "geo:import": "node scripts/import_road_graph.mjs --data ../../dataset/processed/sukkur",
+    "geo:validate": "node scripts/validate_graph.mjs",
+    "db:migrate": "node scripts/run-migration.mjs",
+    "db:inspect": "node scripts/inspect-db.mjs"
   },
   "dependencies": {
     "@fastify/cors": "^11.1.0",
@@ -20,6 +24,7 @@
     "zod": "^3.25.76"
   },
   "devDependencies": {
+    "@types/geojson": "^7946.0.16",
     "@types/pg": "^8.23.1",
     "tsx": "^4.20.6"
   }

@@ -1,5 +1,5 @@
 {
   "extends": "../../tsconfig.base.json",
-  "compilerOptions": { "module": "NodeNext", "moduleResolution": "NodeNext", "types": ["node"] },
+  "compilerOptions": { "module": "NodeNext", "moduleResolution": "NodeNext", "types": ["node", "geojson"] },
   "include": ["src", "tests"]
 }

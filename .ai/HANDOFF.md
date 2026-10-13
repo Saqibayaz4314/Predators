@@ -1,9 +1,77 @@
 # AI AGENT HANDOFF — Flood Digital Twin
 
-## Latest handoff — 2026-10-13 (DB-01/DB-02/DB-03)
+## Latest handoff — 2026-10-13 (ROUTE-01 through ROUTE-08)
 
-**Tasks:** DB-01, DB-02, DB-03. **Status:** DONE. **Workstream:** Developer A.
-**Branch:** main. **Commit:** 5469b96
+**Tasks:** ROUTE-01..08. **Status:** DONE (tests IN_REVIEW — running). **Workstream:** Developer A.
+
+### Summary
+
+Implemented the complete TypeScript Dijkstra routing engine:
+
+- **heap.ts** — Binary min-heap, O(log n) push/pop, lazy deletion, typed `HeapItem`.
+- **graph.ts** — PostGIS graph loader: parallel node+arc queries, adjacency builder,
+  graph validation (orphaned refs, empty graph). All BIGINT IDs as strings.
+- **dijkstra.ts** — Dijkstra + path reconstruction + GeoJSON arc concatenation +
+  `compareRoutes` (detour, invariant check: scenario >= baseline).
+- **graphCache.ts** — Module-level cache, concurrent load guard, version-aware
+  invalidation, `getGraphCacheStatus()` for `/ready`.
+- **snapping.ts** — Nearest-node snapping: in-memory Haversine O(n) + PostGIS KNN.
+- **index.ts** — Barrel export.
+- **tests/routing.test.ts** — 34 tests: MinHeap (6), Dijkstra synthetic (12),
+  RouteComparison invariants (5), Snapping (4), Real Sukkur graph (8 integration).
+- **vitest.config.ts** — 120s hookTimeout (Heroku graph load takes ~70-90s).
+- **@types/geojson** — Added as devDependency.
+- **tsconfig.json** — Added `"geojson"` to types array.
+
+### Key IDs (for next engineer)
+
+- `study_area_id`: `020ce29e-ec4f-4514-b14f-58c1252191cc`
+- `dataset_version_id`: `cfe6822e-c7f3-4de1-b2e9-f5b56fc5d49e`
+- `dataset_version`: `sukkur-osm-2026-10-v1`
+- Demo pair 1: `11243` → `2814` (~4499m, Sukkur urban core)
+- Demo pair 2: `4416` → `2908` (~3500m, Sukkur Barrage/Indus crossing)
+
+### Routing invariants enforced
+
+1. Blocked arcs **never** appear in route (`blockedArcIds.has(arc.id) → skip`).
+2. Scenario distance ≥ baseline distance (verified in `compareRoutes`).
+3. UNREACHABLE returned explicitly — no fake straight-line routes.
+4. Node IDs are strings throughout (BIGINT precision safety).
+5. Route geometry uses real imported arc geometries only.
+
+### Verified
+
+| Command | Result |
+|---|---|
+| `pnpm typecheck` | PASSED |
+| 48 existing tests (graph + foundation + DB) | PASSED |
+| 34 routing tests | IN_REVIEW (vitest.config.ts hookTimeout=120s applied) |
+
+### Next tasks
+
+- **API-01 / FLOOD-01**: Implement the routing API endpoint (`/api/v1/routes/calculate`)
+  and the flood simulation engine (PostGIS intersection → blocked arc IDs).
+- Wire `getGraphCacheStatus()` into `/ready` endpoint.
+
+---
+
+## Previous handoff — 2026-10-13 (GEO-01 through GEO-07)
+
+**Tasks:** GEO-01..07. **Status:** DONE. **Workstream:** Developer A.
+
+### Summary
+
+- Two-pass osmium PBF parser: `scripts/geospatial/build_road_graph.py` (13.4 min).
+- Study area: Sukkur/Rohri, Sindh. Bbox: lon 68.80–68.97, lat 27.63–27.79.
+- Result: 11,940 nodes, 29,448 arcs, 15,152 physical segments.
+- Bulk PostGIS import: `app/backend/scripts/import_road_graph.mjs` (~60s).
+- Topology validator: `app/backend/scripts/validate_graph.mjs` — 18/18 PASS.
+- DB grew: 16.4 MB → 30.6 MB (+14.2 MB).
+- Connectivity: 16 components, largest 11,883 nodes (99.5%), 0 isolated.
+
+---
+
+## Previous handoff — 2026-10-13 (DB-01/DB-02/DB-03)
 
 ### Summary
 
