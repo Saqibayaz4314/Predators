@@ -31,9 +31,9 @@ module "vpc" {
 }
 
 module "ecr" {
-  source          = "./modules/ecr"
-  repository_name = var.ecr_repository_name
-  environment     = var.environment
+  source           = "./modules/ecr"
+  repository_names = var.ecr_repository_names
+  environment      = var.environment
 }
 
 module "eks" {

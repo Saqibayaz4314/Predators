@@ -13,7 +13,7 @@ variable "environment" {
 variable "cluster_name" {
   description = "The name of the Amazon EKS cluster"
   type        = string
-  default     = "eks-prod-cluster"
+  default     = "flood-digital-twin-eks"
 }
 
 variable "cluster_version" {
@@ -22,10 +22,10 @@ variable "cluster_version" {
   default     = "1.36"
 }
 
-variable "ecr_repository_name" {
-  description = "The name of the Amazon ECR repository"
-  type        = string
-  default     = "my-webapp"
+variable "ecr_repository_names" {
+  description = "Names of the Amazon ECR repositories (frontend and backend images)"
+  type        = list(string)
+  default     = ["flood-digital-twin-frontend", "flood-digital-twin-backend"]
 }
 
 variable "vpc_cidr" {

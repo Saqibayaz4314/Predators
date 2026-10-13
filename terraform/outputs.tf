@@ -3,14 +3,14 @@ output "vpc_id" {
   value       = module.vpc.vpc_id
 }
 
-output "ecr_repository_url" {
-  description = "Amazon ECR Repository URL"
-  value       = module.ecr.repository_url
+output "ecr_repository_urls" {
+  description = "Amazon ECR repository URLs keyed by repository name"
+  value       = module.ecr.repository_urls
 }
 
-output "ecr_repository_name" {
-  description = "Amazon ECR Repository Name"
-  value       = module.ecr.repository_name
+output "ecr_repository_names" {
+  description = "Amazon ECR repository names"
+  value       = module.ecr.repository_names
 }
 
 output "eks_cluster_name" {

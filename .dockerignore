@@ -1,0 +1,30 @@
+# Keep the Docker build context small and free of secrets/local state.
+.git
+.github
+.ai
+docs
+dataset
+k8s
+terraform
+scripts
+
+# Dependencies and build outputs
+**/node_modules
+**/dist
+**/build
+**/.vite
+*.tsbuildinfo
+
+# Environment and secrets — never copy into images
+.env
+**/.env
+**/.env.*
+!.env.example
+
+# Local state and logs
+*.log
+*.pid
+.DS_Store
+Thumbs.db
+.idea
+.vscode

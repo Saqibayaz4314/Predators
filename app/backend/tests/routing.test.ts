@@ -24,6 +24,7 @@ import { haversineMeters, snapToNearestNodeInMemory } from '../src/routing/snapp
 import { _resetCacheForTests } from '../src/routing/graphCache.js';
 import type { RoadGraph, GraphArc, GraphNode } from '../src/routing/graph.js';
 import pg from 'pg';
+import { databasePoolConfig } from '../src/db/connection.js';
 import * as dotenv from 'dotenv';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -46,7 +47,7 @@ function makeArc(
     lengthMeters: len,
     geometry: {
       type: 'LineString',
-      coordinates: coords ?? [[0, 0], [1, 0]],
+      coordinates: coords ?? [[src.charCodeAt(0), 0], [tgt.charCodeAt(0), 0]],
     },
   };
 }
@@ -149,6 +150,12 @@ describe('B. Dijkstra — synthetic graphs', () => {
       expect(r.arcIdPath).toEqual(['ab', 'bc']);
       expect(r.arcCount).toBe(2);
     }
+  });
+  it('rejects discontinuous arc geometry rather than inventing a connecting line', () => {
+    const invalid = makeGraph([makeNode('A'), makeNode('B'), makeNode('C')], [
+      makeArc('ab', 'A', 'B', 1, [[0, 0], [1, 0]]), makeArc('bc', 'B', 'C', 1, [[2, 0], [3, 0]]),
+    ]);
+    expect(() => dijkstra(invalid, { originNodeId: 'A', destinationNodeId: 'C', blockedArcIds: new Set() })).toThrow('discontinuous');
   });
 
   it('returns unreachable when going against one-way (B->A not allowed)', () => {
@@ -399,36 +406,34 @@ beforeAll(async () => {
     return;
   }
   pool = new pg.Pool({
-    connectionString: process.env.DATABASE_URL,
-    ssl: { rejectUnauthorized: false },
+    ...databasePoolConfig(process.env.DATABASE_URL),
+    
     max: 2,
   });
   try {
     const client = await pool.connect();
+    try {
     // Check study area exists
     const sa = await client.query(
       `SELECT id FROM study_areas WHERE id = $1`, [STUDY_AREA_ID]
     );
     if (sa.rows.length === 0) {
-      skipIntegration = `Study area ${STUDY_AREA_ID} not found — run geo:import first`;
-      client.release();
-      return;
+      throw new Error('Configured study area is missing');
     }
-    // Load graph — 29,448 edges from Heroku takes ~60-90s over network
-    realGraph = await loadRoadGraph(client, STUDY_AREA_ID, DATASET_VERSION);
-    client.release();
+    } finally { client.release(); }
+    realGraph = await loadRoadGraph(pool, STUDY_AREA_ID, DATASET_VERSION);
   } catch (err) {
-    const safe = (err as Error).message?.replace(/password|credential/gi, '[REDACTED]');
-    skipIntegration = `DB error: ${safe}`;
+    throw new Error('Configured database integration setup failed. Check credentials, TLS and dataset.');
+    
   }
-}, 120_000); // 2 min — Heroku network latency for full graph load
+}, 60_000);
 
 afterAll(async () => {
   if (pool) await pool.end();
   _resetCacheForTests();
 }, 30_000);
 
-describe('D. Real Sukkur graph integration', () => {
+describe.skipIf(!process.env.DATABASE_URL)('D. Real Sukkur graph integration', () => {
   it('graph loads with correct node count', () => {
     if (skipIntegration) return expect.soft(true).toBe(true);
     expect(realGraph).not.toBeNull();
@@ -541,3 +546,5 @@ describe('D. Real Sukkur graph integration', () => {
     expect(elapsed).toBeLessThan(500);
   });
 }, 30_000);
+
+

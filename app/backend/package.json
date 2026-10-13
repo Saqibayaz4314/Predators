@@ -11,6 +11,7 @@
     "test": "vitest run",
     "geo:import": "node scripts/import_road_graph.mjs --data ../../dataset/processed/sukkur",
     "geo:validate": "node scripts/validate_graph.mjs",
+    "geo:seed": "node scripts/seed_scenarios.mjs",
     "db:migrate": "node scripts/run-migration.mjs",
     "db:inspect": "node scripts/inspect-db.mjs"
   },

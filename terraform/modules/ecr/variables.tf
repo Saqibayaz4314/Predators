@@ -1,7 +1,7 @@
-variable "repository_name" {
-  description = "The name of the ECR repository"
-  type        = string
-  default     = "my-webapp"
+variable "repository_names" {
+  description = "Names of the ECR repositories to create"
+  type        = list(string)
+  default     = ["flood-digital-twin-frontend", "flood-digital-twin-backend"]
 }
 
 variable "image_tag_mutability" {

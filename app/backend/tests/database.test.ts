@@ -206,17 +206,20 @@ describe.skipIf(!runIntegration)('database integration (DB-01/DB-02)', () => {
     }
   });
 
-  it('DB-01: /ready returns 503 while dataset is not initialized', async () => {
+  it('DB-01: /ready returns 503 while the routing graph is not loaded', async () => {
     const env = parseEnv({ NODE_ENV: 'test', DATABASE_URL: databaseUrl });
     const app = buildApp(env, pool!);
     const response = await app.inject('/ready');
     await app.close();
-    // DB connected but dataset/graph not yet loaded — expect 503
+    // DB connected and the Sukkur dataset is imported ('ready'), but the
+    // in-memory graph cache is cold in this process — expect 503.
     expect(response.statusCode).toBe(503);
     const body = response.json<{ error: { details: { checks: Record<string, string> } } }>();
     // Database should be 'connected' (or 'error' if PostGIS unavailable)
     expect(['connected', 'error']).toContain(body.error.details.checks.database);
-    expect(body.error.details.checks.dataset).toBe('not_initialized');
+    // Dataset is imported since GEO-07; the graph cache is cold by design.
+    expect(['ready', 'not_initialized']).toContain(body.error.details.checks.dataset);
+    expect(body.error.details.checks.graph).toBe('not_initialized');
     // No credentials in response
     expect(response.body).not.toContain('password');
   });

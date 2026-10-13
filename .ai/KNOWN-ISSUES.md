@@ -71,6 +71,39 @@ The final demo must have:
 
 **Foundation verification completed 2026-10-13.** No unresolved application test failures.
 
+**Infrastructure adaptation (2026-10-14) — new entries:**
+
+- **INFRA-ISSUE-001 — RESOLVED (2026-10-14):** `/ready` hardcoded
+  `dataset/graph = false`, so a fresh EKS pod could never pass a readiness
+  probe (graph loads lazily — chicken-and-egg). Fixed: `/ready` now reports
+  real dataset/graph state and triggers a background graph load when the
+  cache is cold; `server.ts` warms the cache after listen. Verified with
+  `tsc --noEmit` and `vitest run tests/foundation.test.ts` (16/16).
+
+- **INFRA-SEC-001 — RESOLVED (2026-10-14):** Previous project's plaintext
+  secrets were present in the untracked `k8s/secrets.yaml` (MongoDB creds,
+  not used by this project). File deleted; replaced by committed
+  `k8s/secrets.example.yaml` template. Real `flood-secrets` is created by
+  CI from the `DATABASE_URL` GitHub secret. Workflows read
+  `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` from GitHub Secrets
+  (encrypted at rest, masked in logs); hardcoded AWS account
+  ID removed from image refs and state-bucket names. SET-SEC-001 rotation
+  still applies to the Heroku DB password.
+
+- **INFRA-TODO-001 — OPEN (user action required):** GitHub secrets
+  `AWS_ACCESS_KEY_ID` + `AWS_SECRET_ACCESS_KEY` were added by the user
+  (2026-10-14); `DATABASE_URL` (Heroku PostGIS connection string) must
+  also be added before the backend can pass `/ready` in the cluster.
+  Docker image builds could not be verified locally (Docker daemon not
+  running); first real build happens in CI (K8S-03).
+
+- **TEST-ISSUE-001 — OPEN (pre-existing, not from infra work):**
+  `tests/flood.test.ts` group C fails 3 tests (snap out-of-range 404,
+  dataset version mismatch 409, unknown scenario 404) — `routes/routing.ts`
+  and `routes/scenarios.ts` are Developer A's staged in-flight work.
+  Evidence: `npx vitest run tests/flood.test.ts` → 3 failed / 27 passed,
+  identical before and after the infrastructure changes.
+
 - **SET-SEC-001 — USER ACTION REQUIRED:** Credentials were concurrently added to
   `app/backend/.env.example` and surfaced during final file inspection. They were
   removed from the staged example before commit and preserved in an ignored local
@@ -114,10 +147,10 @@ These are planning risks, not confirmed software defects.
 | RISK-001 | Final study area not selected | Developer A | P0 | OPEN |
 | RISK-002 | OSM topology quality not verified | Developer A | P0 | OPEN |
 | RISK-003 | Heroku database capacity not measured | Developer A | P0 | OPEN |
-| RISK-004 | Existing Terraform not audited | Developer B | P0 | OPEN |
-| RISK-005 | Existing Kubernetes files not audited | Developer B | P0 | OPEN |
+| RISK-004 | Existing Terraform not audited | Developer B | P0 | RESOLVED (2026-10-14) |
+| RISK-005 | Existing Kubernetes files not audited | Developer B | P0 | RESOLVED (2026-10-14) |
 | RISK-006 | Terraform state/resource ownership unknown | Developer B | P0 | OPEN |
-| RISK-007 | Public ingress and TLS strategy unverified | Developer B | P0 | OPEN |
+| RISK-007 | Public ingress and TLS strategy unverified | Developer B | P0 | OPEN (approach chosen: NLB + nginx API proxy; needs live deploy to verify) |
 | RISK-008 | DigitalOcean AI provider details unverified | Developer A | P1 | OPEN |
 
 Update these only when evidence becomes available.
@@ -546,10 +579,10 @@ Check:
 
 Check:
 
-- OIDC trust policy.
-- Repository restrictions.
-- Branch restrictions.
-- IAM role ARN.
+- GitHub secrets `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY` exist.
+- Secrets belong to an IAM user with deploy permissions.
+- IAM user key status is Active (not rotated away).
+- Key was not leaked (rotate immediately if so).
 - Region.
 - Required permissions.
 
@@ -795,23 +828,26 @@ The available Heroku database storage and connection limits have not been measur
 
 ## RISK-004 — Existing Terraform Compatibility
 
-**Status:** OPEN  
+**Status:** RESOLVED (2026-10-14)  
 **Owner:** Developer B
 
-Existing Terraform was tested for another project.
+Audited and adapted: cluster `flood-digital-twin-eks`, ECR repos
+`flood-digital-twin-frontend`/`flood-digital-twin-backend`.
+`terraform fmt -check` + `terraform validate` passed locally.
 
-**Next action:** Audit resource definitions, variables, state ownership and project-specific values.
+**Next action:** TF-01/TF-07 — review `terraform plan` against live AWS.
 
 ---
 
 ## RISK-005 — Existing Kubernetes Compatibility
 
-**Status:** OPEN  
+**Status:** RESOLVED (2026-10-14)  
 **Owner:** Developer B
 
-Existing Kubernetes manifests may contain old application assumptions.
+Manifests rewritten for namespace `flood-digital-twin`; MongoDB manifest
+removed; probes on `/health`/`/ready` (3001); secrets template only in git.
 
-**Next action:** Audit image names, ports, services, ingress, secrets and probes.
+**Next action:** Live apply after images are built (CICD-05+).
 
 ---
 

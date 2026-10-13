@@ -1,4 +1,4 @@
-name: CI/CD Pipeline - Terraform Infra, Docker Build & EKS Deploy
+name: Deploy Flood Digital Twin
 
 on:
   push:
@@ -6,24 +6,33 @@ on:
       - main
   workflow_dispatch:
 
+permissions:
+  contents: read
+
+concurrency:
+  group: production-deploy
+  cancel-in-progress: false
 
 env:
   AWS_REGION: ap-southeast-2
-  TF_STATE_BUCKET: openhack-tfstate-529976312848-apse2
-  ECR_REPOSITORY: my-webapp
-  EKS_CLUSTER_NAME: eks-prod-cluster
-  APP_NAME: my-webapp
+  EKS_CLUSTER_NAME: flood-digital-twin-eks
+  K8S_NAMESPACE: flood-digital-twin
+  ECR_FRONTEND_REPO: flood-digital-twin-frontend
+  ECR_BACKEND_REPO: flood-digital-twin-backend
 
 jobs:
   build-provision-and-deploy:
     name: Build, Provision & Deploy
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 90
 
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
 
+      # Required GitHub secrets: AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY.
+      # GitHub encrypts secrets at rest and masks their values in logs; the
+      # keys are injected only at job runtime and never printed by any step.
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
@@ -40,27 +49,30 @@ jobs:
       - name: Setup Kubectl
         uses: azure/setup-kubectl@v4
         with:
-          version: 'v1.30.0'
+          version: 'v1.32.0'
 
       - name: Ensure S3 Remote State Bucket
         id: s3-state
         run: |
           ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
-          BUCKET="${{ env.TF_STATE_BUCKET }}"
+          BUCKET="${{ vars.TF_STATE_BUCKET }}"
           if [ -z "$BUCKET" ]; then
-            BUCKET="openhack-tfstate-${ACCOUNT_ID}-${{ env.AWS_REGION }}"
+            BUCKET="flood-digital-twin-tfstate-${ACCOUNT_ID}-${{ env.AWS_REGION }}"
           fi
           echo "Using Terraform state bucket: $BUCKET"
-          echo "BUCKET_NAME=$BUCKET" >> $GITHUB_ENV
+          echo "BUCKET_NAME=$BUCKET" >> "$GITHUB_ENV"
 
           if ! aws s3api head-bucket --bucket "$BUCKET" 2>/dev/null; then
             echo "Bucket $BUCKET does not exist. Creating..."
             if [ "${{ env.AWS_REGION }}" = "us-east-1" ]; then
               aws s3api create-bucket --bucket "$BUCKET"
             else
-              aws s3api create-bucket --bucket "$BUCKET" --region ${{ env.AWS_REGION }} --create-bucket-configuration LocationConstraint=${{ env.AWS_REGION }}
+              aws s3api create-bucket --bucket "$BUCKET" --region "${{ env.AWS_REGION }}" \
+                --create-bucket-configuration LocationConstraint="${{ env.AWS_REGION }}"
             fi
             aws s3api put-bucket-versioning --bucket "$BUCKET" --versioning-configuration Status=Enabled
+            aws s3api put-bucket-encryption --bucket "$BUCKET" \
+              --server-side-encryption-configuration '{"Rules":[{"ApplyServerSideEncryptionByDefault":{"SSEAlgorithm":"AES256"}}]}'
           else
             echo "Bucket $BUCKET already exists."
           fi
@@ -73,16 +85,18 @@ jobs:
           terraform init \
             -reconfigure \
             -backend-config="bucket=${{ env.BUCKET_NAME }}" \
-            -backend-config="key=production/terraform.tfstate" \
+            -backend-config="key=flood-digital-twin/terraform.tfstate" \
             -backend-config="region=${{ env.AWS_REGION }}"
 
-          echo "==> Applying Terraform Infrastructure (VPC, ECR, EKS)..."
+          echo "==> Applying Terraform infrastructure (VPC, ECR, EKS)..."
           terraform apply -auto-approve
 
-          ECR_REPO_URL=$(terraform output -raw ecr_repository_url)
+          ECR_FRONTEND_URL=$(terraform output -raw 'ecr_repository_urls["flood-digital-twin-frontend"]')
+          ECR_BACKEND_URL=$(terraform output -raw 'ecr_repository_urls["flood-digital-twin-backend"]')
           CLUSTER_NAME=$(terraform output -raw eks_cluster_name)
-          echo "ECR_REPO_URL=$ECR_REPO_URL" >> $GITHUB_ENV
-          echo "CLUSTER_NAME=$CLUSTER_NAME" >> $GITHUB_ENV
+          echo "ECR_FRONTEND_URL=$ECR_FRONTEND_URL" >> "$GITHUB_ENV"
+          echo "ECR_BACKEND_URL=$ECR_BACKEND_URL" >> "$GITHUB_ENV"
+          echo "CLUSTER_NAME=$CLUSTER_NAME" >> "$GITHUB_ENV"
 
       - name: Log in to Amazon ECR
         id: login-ecr
@@ -91,95 +105,105 @@ jobs:
       - name: Docker Setup Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Docker Build & Push Frontend to ECR
-        id: docker-build-frontend
+      - name: Build & Push Frontend to ECR
         uses: docker/build-push-action@v5
         with:
-          context: app/my-react-app
-          file: app/my-react-app/Dockerfile
+          context: .
+          file: app/frontend/Dockerfile
           push: true
           tags: |
-            ${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:${{ github.sha }}
-            ${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:latest
-            ${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:frontend-${{ github.sha }}
+            ${{ env.ECR_FRONTEND_URL }}:${{ github.sha }}
+            ${{ env.ECR_FRONTEND_URL }}:frontend-latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      - name: Docker Build & Push Backend to ECR
-        id: docker-build-backend
+      - name: Build & Push Backend to ECR
         uses: docker/build-push-action@v5
         with:
-          context: app/Backend
-          file: app/Backend/Dockerfile
+          context: .
+          file: app/backend/Dockerfile
           push: true
           tags: |
-            ${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:backend-${{ github.sha }}
-            ${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:backend-latest
+            ${{ env.ECR_BACKEND_URL }}:${{ github.sha }}
+            ${{ env.ECR_BACKEND_URL }}:backend-latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
       - name: Configure Kubectl for EKS
         run: |
-          echo "Connecting to EKS cluster: ${{ env.CLUSTER_NAME || env.EKS_CLUSTER_NAME }}"
-          aws eks update-kubeconfig --region ${{ env.AWS_REGION }} --name ${{ env.CLUSTER_NAME || env.EKS_CLUSTER_NAME }}
+          aws eks update-kubeconfig --region "${{ env.AWS_REGION }}" \
+            --name "${{ env.CLUSTER_NAME || env.EKS_CLUSTER_NAME }}"
 
-      - name: Ensure Kubernetes Namespace
+      # DATABASE_URL is passed via environment so the value never appears in
+      # the step source; GitHub masks it in logs automatically.
+      - name: Create Kubernetes Secret from GitHub Secrets
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
         run: |
-          kubectl create namespace production --dry-run=client -o yaml | kubectl apply -f -
+          if [ -n "$DATABASE_URL" ]; then
+            kubectl create secret generic flood-secrets -n "${{ env.K8S_NAMESPACE }}" \
+              --from-literal=DATABASE_URL="$DATABASE_URL" \
+              --dry-run=client -o yaml | kubectl apply -f -
+            echo "Secret flood-secrets upserted."
+          else
+            echo "::warning::GitHub secret DATABASE_URL is not set — backend /ready will stay 503."
+          fi
 
       - name: Deploy Kubernetes Manifests
         run: |
-          FRONTEND_IMAGE="${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:${{ github.sha }}"
-          BACKEND_IMAGE="${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:backend-${{ github.sha }}"
-          echo "Deploying Frontend image: $FRONTEND_IMAGE"
-          echo "Deploying Backend image : $BACKEND_IMAGE"
+          FRONTEND_IMAGE="${{ env.ECR_FRONTEND_URL }}:${{ github.sha }}"
+          BACKEND_IMAGE="${{ env.ECR_BACKEND_URL }}:${{ github.sha }}"
+          echo "Deploying frontend image: $FRONTEND_IMAGE"
+          echo "Deploying backend image : $BACKEND_IMAGE"
 
-          # Dynamically inject newly built image tags into deployment manifests
-          sed -i -E "s|(image: ).*|\1${FRONTEND_IMAGE}|" k8s/deployment.yaml
-          sed -i -E "s|(image: ).*|\1${BACKEND_IMAGE}|" k8s/backend.yaml
+          # Substitute image placeholders in workspace copies; never mutate
+          # the repository manifests. secrets.example.yaml is intentionally
+          # not applied (the real secret was created in the previous step).
+          cp k8s/frontend.yaml /tmp/frontend.yaml
+          cp k8s/backend.yaml /tmp/backend.yaml
+          sed -i "s|FLOOD_FRONTEND_IMAGE|${FRONTEND_IMAGE}|g" /tmp/frontend.yaml
+          sed -i "s|FLOOD_BACKEND_IMAGE|${BACKEND_IMAGE}|g" /tmp/backend.yaml
 
-          # Remove any legacy stuck statefulset from previous run
-          kubectl delete statefulset mongodb -n production --ignore-not-found=true
+          kubectl apply -f k8s/namespace.yaml
+          kubectl apply -n "${{ env.K8S_NAMESPACE }}" \
+            -f k8s/configmap.yaml \
+            -f /tmp/backend.yaml \
+            -f /tmp/frontend.yaml \
+            -f k8s/hpa.yaml \
+            -f k8s/pdb.yaml
 
-          # Apply all manifests in k8s directory
-          kubectl apply -f k8s/ -n production
-
-          # Helper function to monitor rollout and print detailed diagnostics if stuck
+      - name: Wait for Rollouts
+        run: |
           wait_for_rollout() {
             local resource=$1
             echo "==> Monitoring rollout for $resource..."
-            if ! kubectl rollout status "$resource" -n production --timeout=180s; then
-              echo "❌ ROLLOUT FAILED FOR $resource!"
-              echo "--- Pod Status in production ---"
-              kubectl get pods -n production -o wide
-              echo "--- Describe Pods ---"
-              kubectl describe pods -n production
-              echo "--- Pod Logs ---"
-              kubectl logs -l app=my-webapp -n production --tail=50 || true
-              kubectl logs -l app=backend -n production --tail=50 || true
-              kubectl logs -l app=mongodb -n production --tail=50 || true
+            if ! kubectl rollout status "$resource" -n "${{ env.K8S_NAMESPACE }}" --timeout=300s; then
+              echo "ROLLOUT FAILED for $resource — diagnostics below."
+              kubectl get pods -n "${{ env.K8S_NAMESPACE }}" -o wide
+              kubectl describe pods -n "${{ env.K8S_NAMESPACE }}"
+              kubectl logs -l app=flood-backend -n "${{ env.K8S_NAMESPACE }}" --tail=50 || true
+              kubectl logs -l app=flood-frontend -n "${{ env.K8S_NAMESPACE }}" --tail=50 || true
               exit 1
             fi
-            echo "✅ Successfully rolled out $resource"
+            echo "Successfully rolled out $resource"
           }
 
-          wait_for_rollout deployment/${{ env.APP_NAME }}-deployment
-          wait_for_rollout deployment/backend-deployment
-          wait_for_rollout deployment/mongodb-deployment
+          wait_for_rollout deployment/flood-backend
+          wait_for_rollout deployment/flood-frontend
 
-
-
-      - name: Retrieve Public IP, Port & Verify Index Page
+      - name: Verify Public Application
         run: |
-          echo "Waiting for AWS Load Balancer to provision external hostname..."
+          echo "Waiting for the AWS Load Balancer to provision an external address..."
           LB_HOST=""
           for i in $(seq 1 60); do
-            LB_HOST=$(kubectl get svc my-webapp-service -n production -o jsonpath='{.status.loadBalancer.ingress[0].hostname}' 2>/dev/null || true)
+            LB_HOST=$(kubectl get svc flood-frontend-service -n "${{ env.K8S_NAMESPACE }}" \
+              -o jsonpath='{.status.loadBalancer.ingress[0].hostname}' 2>/dev/null || true)
             if [ -z "$LB_HOST" ]; then
-              LB_HOST=$(kubectl get svc my-webapp-service -n production -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>/dev/null || true)
+              LB_HOST=$(kubectl get svc flood-frontend-service -n "${{ env.K8S_NAMESPACE }}" \
+                -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>/dev/null || true)
             fi
             if [ -n "$LB_HOST" ]; then
-              echo "LoadBalancer hostname found: $LB_HOST"
+              echo "LoadBalancer address found: $LB_HOST"
               break
             fi
             echo "Waiting for LoadBalancer ingress address... ($i/60)"
@@ -187,70 +211,42 @@ jobs:
           done
 
           if [ -z "$LB_HOST" ]; then
-            echo "Error: Timed out waiting for LoadBalancer address."
-            kubectl describe svc my-webapp-service -n production
+            echo "Error: timed out waiting for LoadBalancer address."
+            kubectl describe svc flood-frontend-service -n "${{ env.K8S_NAMESPACE }}"
             exit 1
           fi
 
-          PORT=$(kubectl get svc my-webapp-service -n production -o jsonpath='{.spec.ports[0].port}')
-          NODE_PORT=$(kubectl get svc my-webapp-service -n production -o jsonpath='{.spec.ports[0].nodePort}')
-          NODE_IPS=$(kubectl get nodes -o jsonpath='{.items[*].status.addresses[?(@.type=="ExternalIP")].address}' || true)
-
-          # Resolve LoadBalancer DNS hostname to Public IPv4 addresses
-          PUBLIC_IPS=$(dig +short "$LB_HOST" | grep -E '^[0-9.]+$' | tr '\n' ' ' || true)
-          if [ -z "$PUBLIC_IPS" ]; then
-            PUBLIC_IPS=$(getent hosts "$LB_HOST" | awk '{print $1}' | tr '\n' ' ' || true)
-          fi
-
-          echo ""
-          echo "=========================================================="
-          echo "🎉 APPLICATION DEPLOYED SUCCESSFULLY!"
-          echo "=========================================================="
-          echo "Public LoadBalancer URL: http://$LB_HOST:$PORT"
-          echo "LoadBalancer Hostname  : $LB_HOST"
-          echo "LoadBalancer Public IPs: ${PUBLIC_IPS:-$LB_HOST}"
-          echo "Service Port           : $PORT"
-          echo "NodePort               : $NODE_PORT"
-          echo "Worker Node Public IPs : ${NODE_IPS:-None}"
-          echo "=========================================================="
-          echo ""
-
-          echo "Waiting for LoadBalancer to register targets and serve frontend..."
+          echo "Waiting for the frontend to serve content..."
           APP_CONTENT=""
           for i in $(seq 1 40); do
-            APP_CONTENT=$(curl -sL -m 5 "http://$LB_HOST:$PORT" || true)
-            if echo "$APP_CONTENT" | grep -qi -E "Dashboard|Task Management|<html"; then
-              echo "✅ Success! Application responded with frontend content."
+            APP_CONTENT=$(curl -sL -m 10 "http://$LB_HOST/" || true)
+            if echo "$APP_CONTENT" | grep -qi "<html"; then
+              echo "Frontend responded with HTML."
               break
             fi
             echo "Attempt $i/40: LoadBalancer warming up... waiting 6s"
             sleep 6
           done
 
+          echo "Verifying backend health through the public entry point..."
+          HEALTH_BODY=$(curl -s -m 15 "http://$LB_HOST/health" || true)
+          echo "GET /health -> $HEALTH_BODY"
 
-          echo ""
-          echo "==================== INDEX FILE OUTPUT ===================="
-          echo "$APP_CONTENT"
-          echo "==========================================================="
+          echo "Verifying backend readiness inside the cluster..."
+          kubectl exec deploy/flood-backend -n "${{ env.K8S_NAMESPACE }}" -- \
+            wget -qO- --timeout=10 http://127.0.0.1:3001/ready || true
 
-
-          # Write summary to GitHub Step Summary
           {
-            echo "# 🚀 Application Deployed & Verified"
+            echo "## Flood Digital Twin Deployment Summary"
             echo ""
-            echo "Everything was built and deployed automatically via \`git push\`."
+            echo "- **Public URL**: http://$LB_HOST/"
+            echo "- **Frontend image**: \`${{ env.ECR_FRONTEND_URL }}:${{ github.sha }}\`"
+            echo "- **Backend image**: \`${{ env.ECR_BACKEND_URL }}:${{ github.sha }}\`"
+            echo "- **Cluster**: \`${{ env.CLUSTER_NAME || env.EKS_CLUSTER_NAME }}\`"
+            echo "- **Namespace**: \`${{ env.K8S_NAMESPACE }}\`"
             echo ""
-            echo "### 🌐 Public Access Details"
-            echo "- **Public URL**: [http://$LB_HOST:$PORT](http://$LB_HOST:$PORT)"
-            echo "- **LoadBalancer Hostname**: \`$LB_HOST\`"
-            echo "- **Public IP(s)**: \`${PUBLIC_IPS:-$LB_HOST}\`"
-            echo "- **Service Port**: \`$PORT\`"
-            echo "- **NodePort**: \`$NODE_PORT\`"
-            echo "- **Node Public IPs**: \`${NODE_IPS:-Not Assigned}\`"
+            echo "### Verification"
             echo ""
-            echo "### 📄 \`index.html\` Response:"
-            echo '```html'
-            echo "$APP_CONTENT"
-            echo '```'
+            echo "- Frontend: $(echo "$APP_CONTENT" | grep -qi '<html' && echo 'serving HTML' || echo 'NOT VERIFIED')"
+            echo "- Backend /health: \`$HEALTH_BODY\`"
           } >> "$GITHUB_STEP_SUMMARY"
-

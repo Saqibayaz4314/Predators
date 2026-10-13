@@ -21,7 +21,8 @@ interface CacheEntry {
 let _cache: CacheEntry | null = null;
 
 // Pending load guard — prevents duplicate concurrent DB queries
-let _pendingLoad: Promise<RoadGraph> | null = null;
+const pendingLoads = new Map<string, Promise<RoadGraph>>();
+let generation = 0;
 
 /**
  * Get the cached graph, or load it from PostGIS if not yet cached.
@@ -48,30 +49,27 @@ export async function getOrLoadGraph(
   }
 
   // Another concurrent call is already loading — wait for it
-  if (_pendingLoad) {
-    return _pendingLoad;
-  }
-
-  // Load from DB
-  _pendingLoad = (async () => {
-    const client = await pool.connect();
-    try {
-      const graph = await loadRoadGraph(client, studyAreaId, datasetVersion);
-      _cache = { graph, datasetVersion, studyAreaId };
-      return graph;
-    } finally {
-      client.release();
-      _pendingLoad = null;
-    }
-  })();
-
-  return _pendingLoad;
+  const key = `${studyAreaId}:${datasetVersion}`;
+  const pending = pendingLoads.get(key);
+  if (pending) return pending;
+  const loadGeneration = generation;
+  // Use the bounded pool: queries can use separate clients, released by pg.
+  // finally also covers acquisition failure, so retries cannot get stuck.
+  const load = loadRoadGraph(pool, studyAreaId, datasetVersion).then((graph) => {
+    if (loadGeneration === generation) _cache = { graph, datasetVersion, studyAreaId };
+    return graph;
+  }).finally(() => {
+    if (pendingLoads.get(key) === load) pendingLoads.delete(key);
+  });
+  pendingLoads.set(key, load);
+  return load;
 }
 
 /** Invalidate the graph cache (e.g., after a new dataset is imported). */
 export function invalidateGraphCache(): void {
   _cache = null;
-  // Don't cancel pending load — it will finish and set cache
+  generation++;
+  pendingLoads.clear();
 }
 
 /** Return cache status for health/ready checks. */
@@ -105,6 +103,5 @@ export function getGraphCacheStatus(): {
 
 /** For testing only — reset module-level cache state. */
 export function _resetCacheForTests(): void {
-  _cache = null;
-  _pendingLoad = null;
+  invalidateGraphCache();
 }

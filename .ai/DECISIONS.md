@@ -54,9 +54,9 @@ Existing architecture decisions below remain in force.
 **Project:** Flood Digital Twin  
 **Challenge:** CL-01 — Flood Risk & Evacuation Planner  
 **File:** `.ai/DECISIONS.md`  
-**Version:** 1.0  
-**Last Updated:** 2026-10-13  
-**Status:** Initial Architecture Decisions
+**Version:** 1.1  
+**Last Updated:** 2026-10-14  
+**Status:** Infrastructure Adaptation Decisions Recorded (ADR-035..038)
 
 ---
 
@@ -817,7 +817,7 @@ Automates image building and deployment while reusing tested configuration.
 
 ### Security
 
-Prefer OIDC-based AWS authentication when supported by the existing setup.
+AWS credentials come from GitHub Secrets (encrypted at rest, masked in logs).
 
 Do not expose credentials in workflow logs.
 
@@ -1042,28 +1042,134 @@ Enabling live AI explanations.
 
 ## ADR-035 — Final Public Ingress Strategy
 
-**Status:** PROPOSED  
+**Status:** ACCEPTED  
 **Priority:** P0
 
-### Options
+### Decision
 
-- Existing Kubernetes ingress setup.
-- AWS load balancer.
-- Existing authorized domain/TLS setup.
-- Simpler deployment fallback.
+Use the existing AWS NLB (Network Load Balancer) in front of the frontend
+Deployment, with nginx inside the frontend pod reverse-proxying `/api/`,
+`/health` and `/ready` to the backend ClusterIP Service. No Kubernetes
+Ingress controller is deployed.
 
-### Decision criteria
+### Reason
 
-- Public accessibility.
-- Working frontend/backend routing.
-- Browser compatibility.
-- Security.
-- Deadline.
-- Cost.
+- Reuses the tested Terraform EKS module output (NLB hostname).
+- Avoids installing an ingress controller and its annotations/TLS
+  configuration during the hackathon.
+- Same-origin `/api/v1` traffic removes CORS complexity in the browser.
+- nginx uses a kube-dns resolver and a variable backend name, so the
+  frontend pod starts even before the backend Service is reachable.
 
-### Decision required before
+### Consequences
 
-Final production deployment.
+- `k8s/frontend.yaml` exposes the NLB Service; the backend Service stays
+  ClusterIP-only (never publicly reachable).
+- `app/frontend/nginx.conf` owns the API proxy rules.
+- The NLB hostname does not provide trusted HTTPS; this remains a known
+  limitation for the demo (ADR-027).
+- RISK-007 stays OPEN until a live deploy verifies public routing.
+
+### Rejected alternatives
+
+- Kubernetes Ingress controller (nginx-ingress / ALB controller): extra
+  components and annotation complexity, no added benefit for one route.
+- Exposing the backend Service publicly: unnecessary attack surface.
+
+---
+
+## ADR-036 — GitHub Actions AWS Authentication via GitHub Secrets
+
+**Status:** ACCEPTED  
+**Priority:** P0
+
+### Decision
+
+GitHub Actions authenticates to AWS with `AWS_ACCESS_KEY_ID` and
+`AWS_SECRET_ACCESS_KEY` stored as GitHub repository secrets, passed to
+`aws-actions/configure-aws-credentials@v4` in access-key mode.
+
+### Reason
+
+- Chosen by the developers for the hackathon: the keys already exist as
+  GitHub secrets and need no one-time IAM OIDC provider setup.
+- GitHub encrypts secrets at rest, injects them only at job runtime and
+  automatically masks their values in logs.
+- The previous workflow's hardcoded account IDs and key-based auth were
+  removed during the infrastructure adaptation.
+
+### Consequences
+
+- `deploy.yaml` and `destroy.yaml` read both keys from
+  `secrets.AWS_ACCESS_KEY_ID` / `secrets.AWS_SECRET_ACCESS_KEY`; the
+  `id-token: write` permission is no longer required.
+- The Terraform S3 state bucket name comes from the `TF_STATE_BUCKET`
+  repository variable or is computed from the caller identity — never
+  from a hardcoded account-qualified string.
+
+### Future hardening
+
+OIDC role assumption (`role-to-assume`) remains an option if the keys
+must be retired; keys must be rotated immediately if they ever leak.
+
+---
+
+## ADR-037 — Kubernetes Secrets via CI, Templates Only in Git
+
+**Status:** ACCEPTED  
+**Priority:** P0
+
+### Decision
+
+No real secret values are committed. The repository contains only
+`k8s/secrets.example.yaml` and `terraform/terraform.tfvars.example` as
+placeholders. CI creates/updates the `flood-secrets` Kubernetes Secret
+from GitHub Secrets (`DATABASE_URL` passed via environment variable so
+it never appears in step source or logs).
+
+### Reason
+
+- The inherited `k8s/secrets.yaml` contained plaintext credentials for
+  the previous project (INFRA-SEC-001); deleted.
+- GitHub Secrets are encrypted at rest and injected only at deploy time.
+- Keeps a one-way flow: GitHub Secrets → kubectl Secret → pod env.
+
+### Consequences
+
+- `k8s/secrets.yaml` is deleted; applying `secrets.example.yaml` will
+  fail validation unless the placeholder is replaced.
+- Non-secret configuration (NODE_ENV, HOST, PORT, LOG_LEVEL) stays in
+  `k8s/configmap.yaml`.
+- `terraform.tfvars` remains gitignored; `terraform.tfvars.example` is
+  the committed template.
+
+---
+
+## ADR-038 — Dual ECR Repositories for Frontend and Backend
+
+**Status:** ACCEPTED  
+**Priority:** P0
+
+### Decision
+
+Publish two separate ECR repositories (`flood-frontend`,
+`flood-backend`) via the ECR module's `for_each`, tagging each image
+with the commit SHA for immutability.
+
+### Reason
+
+- Independent image lifecycles and smaller pull sizes per pod.
+- SHA tags give reproducible rollouts; `k8s/*.yaml` image placeholders
+  are substituted in CI from the freshly built tags.
+- Matches the Docker monorepo build strategy from ADR-025.
+
+### Consequences
+
+- Terraform `ecr_repository_names` is a list consumed by
+  `for_each = toset(var.repository_names)`.
+- `deploy.yaml` builds both images, retrieves the registry URL from
+  Terraform output, and sed-substitutes it into /tmp copies of the
+  manifests (originals in git keep placeholder names).
 
 ---
 
@@ -1206,6 +1312,6 @@ The most important commitments are:
 
 ---
 
-**Document Status:** `.ai/DECISIONS.md` — Initial Decision Register Complete
+**Document Status:** `.ai/DECISIONS.md` — Updated 2026-10-14 (ADR-035 accepted, ADR-036..038 added)
 
 **Next File:** `.ai/KNOWN-ISSUES.md`

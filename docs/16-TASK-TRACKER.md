@@ -196,7 +196,7 @@ Next: ROUTE-01 adjacency graph loader.
 | ROUTE-05 | Implement route GeoJSON assembly | A | P0 | ROUTE-04 | DONE |
 | ROUTE-06 | Implement nearest-node snapping | A | P0 | GEO-05 | DONE |
 | ROUTE-07 | Implement graph version cache | A | P1 | ROUTE-01 | DONE |
-| ROUTE-08 | Write routing unit tests | A | P0 | ROUTE-03 | IN_REVIEW |
+| ROUTE-08 | Write routing unit tests | A | P0 | ROUTE-03 | DONE |
 
 ### Phase C acceptance
 
@@ -204,18 +204,23 @@ Next: ROUTE-01 adjacency graph loader.
 - [x] One-way roads are respected. (reverse direction returns UNREACHABLE)
 - [x] Unreachable routes are handled. (explicit UNREACHABLE status, no fake routes)
 - [x] Route geometry follows real roads. (arc geometry concatenated, no straight lines)
-- [x] Critical unit tests pass. (IN_REVIEW — test run in progress)
+- [x] Critical unit tests pass. (84/84 tests PASSED — 36 routing incl. real Sukkur graph)
 
-ROUTE-01..ROUTE-08 implemented 2026-10-13:
+ROUTE-01..ROUTE-08 verified 2026-10-13:
   - heap.ts: binary min-heap, O(log n) push/pop, lazy deletion
   - graph.ts: PostGIS loader, types, adjacency builder, validation
   - dijkstra.ts: Dijkstra + path reconstruction + GeoJSON assembly + compareRoutes
   - graphCache.ts: module-level cache, concurrent load guard, version invalidation
   - snapping.ts: in-memory Haversine + PostGIS KNN nearest-node snapping
   - index.ts: barrel export
-  - tests/routing.test.ts: 34 new tests (A-D: heap, synthetic, invariants, real graph)
-  - @types/geojson added as devDependency
-Next: FLOOD-01 or API-01 (routing API endpoint)
+  - tests/routing.test.ts: 36 tests ALL PASSED (heap 6, synthetic 12, invariants 5, snapping 4, real graph 8+1)
+  - vitest.config.ts: 120s hookTimeout (Heroku graph load ~100s)
+  - @types/geojson added as devDependency; tsconfig updated
+  - Real graph (11,940 nodes, 29,448 arcs) loaded + routed in 101.77s total
+  - Demo pair routing verified: pair1 ~4499m, pair2 ~3500m
+  - Blocked arc invariant confirmed: scenario arcs ≥ baseline distance
+  - Git commit: 32d2177
+Next: FLOOD-01 (PostGIS flood intersection) + API-01 (routing endpoint)
 
 ---
 
@@ -349,12 +354,18 @@ Developer B starts these tasks at H00 while Developer A works on the application
 
 | ID | Task | Priority | Depends on | Status |
 |---|---|---|---|---|
-| INF-01 | Copy existing infrastructure files into repository | P0 | SET-01 | TODO |
-| INF-02 | Audit existing Terraform files | P0 | INF-01 | TODO |
-| INF-03 | Audit existing Kubernetes manifests | P0 | INF-01 | TODO |
-| INF-04 | Audit existing GitHub Actions workflows | P0 | INF-01 | TODO |
-| INF-05 | Identify previous-project hardcoded values | P0 | INF-02–INF-04 | TODO |
-| INF-06 | Identify reusable infrastructure | P0 | INF-05 | TODO |
+| INF-01 | Copy existing infrastructure files into repository | P0 | SET-01 | DONE |
+| INF-02 | Audit existing Terraform files | P0 | INF-01 | DONE |
+| INF-03 | Audit existing Kubernetes manifests | P0 | INF-01 | DONE |
+| INF-04 | Audit existing GitHub Actions workflows | P0 | INF-01 | DONE |
+| INF-05 | Identify previous-project hardcoded values | P0 | INF-02–INF-04 | DONE |
+| INF-06 | Identify reusable infrastructure | P0 | INF-05 | DONE |
+
+**2026-10-14 audit outcome:** VPC/EKS/ECR module patterns reusable; replaced
+`my-webapp`/`eks-prod-cluster`/`3-tier-app`/`production` references, removed
+in-cluster MongoDB (Heroku PostGIS is external), replaced plaintext
+`k8s/secrets.yaml` with a template, and removed the hardcoded AWS account ID
+from workflows. Audit recorded in `.ai/HANDOFF.md`.
 
 ### Acceptance
 
@@ -373,13 +384,18 @@ Developer B starts these tasks at H00 while Developer A works on the application
 | ID | Task | Priority | Depends on | Status |
 |---|---|---|---|---|
 | TF-01 | Verify AWS account and region | P0 | INF-02 | TODO |
-| TF-02 | Adapt project-specific variables | P0 | INF-06 | TODO |
+| TF-02 | Adapt project-specific variables | P0 | INF-06 | DONE |
 | TF-03 | Verify EKS cluster configuration | P0 | TF-01 | TODO |
 | TF-04 | Verify ECR repository configuration | P0 | TF-01 | TODO |
 | TF-05 | Verify networking and load balancer approach | P0 | TF-03 | TODO |
-| TF-06 | Run Terraform formatting and validation | P0 | TF-02–TF-05 | TODO |
+| TF-06 | Run Terraform formatting and validation | P0 | TF-02–TF-05 | DONE |
 | TF-07 | Review Terraform plan | P0 | TF-06 | TODO |
 | TF-08 | Apply approved infrastructure changes | P0 | TF-07 | TODO |
+
+**2026-10-14:** TF-02 adapted (cluster `flood-digital-twin-eks`, ECR repos
+`flood-digital-twin-frontend`/`flood-digital-twin-backend`); TF-06 passed —
+`terraform fmt -check -recursive` exit 0 and `terraform validate` succeeded
+locally. TF-01/03/04/07/08 require live AWS access and remain open.
 
 ### Acceptance
 
@@ -397,15 +413,23 @@ Developer B starts these tasks at H00 while Developer A works on the application
 
 | ID | Task | Priority | Depends on | Status |
 |---|---|---|---|---|
-| K8S-01 | Adapt frontend Dockerfile | P0 | INF-03, SET-03 | TODO |
-| K8S-02 | Adapt backend Dockerfile | P0 | INF-03, SET-04 | TODO |
+| K8S-01 | Adapt frontend Dockerfile | P0 | INF-03, SET-03 | DONE |
+| K8S-02 | Adapt backend Dockerfile | P0 | INF-03, SET-04 | DONE |
 | K8S-03 | Verify monorepo build contexts | P0 | K8S-01, K8S-02 | TODO |
-| K8S-04 | Adapt frontend Deployment/Service | P0 | K8S-01 | TODO |
-| K8S-05 | Adapt backend Deployment/Service | P0 | K8S-02 | TODO |
-| K8S-06 | Configure environment and secrets | P0 | K8S-05 | TODO |
-| K8S-07 | Adapt public ingress/routing | P0 | K8S-04, K8S-05 | TODO |
-| K8S-08 | Configure readiness/liveness probes | P0 | SET-07, K8S-05 | TODO |
-| K8S-09 | Validate Kubernetes manifests | P0 | K8S-04–K8S-08 | TODO |
+| K8S-04 | Adapt frontend Deployment/Service | P0 | K8S-01 | DONE |
+| K8S-05 | Adapt backend Deployment/Service | P0 | K8S-02 | DONE |
+| K8S-06 | Configure environment and secrets | P0 | K8S-05 | DONE |
+| K8S-07 | Adapt public ingress/routing | P0 | K8S-04, K8S-05 | DONE |
+| K8S-08 | Configure readiness/liveness probes | P0 | SET-07, K8S-05 | DONE |
+| K8S-09 | Validate Kubernetes manifests | P0 | K8S-04–K8S-08 | DONE |
+
+**2026-10-14:** Manifests rewritten for namespace `flood-digital-twin`;
+frontend nginx reverse-proxies `/api/` to the backend Service (no ingress
+controller needed); probes use `/health` and `/ready` on port 3001; secrets
+via CI-created `flood-secrets` (template `secrets.example.yaml` only in git).
+K8S-09 validated with PyYAML parse; cluster-level validation pending deploy.
+K8S-03 (Docker builds) NOT RUN — Docker daemon unavailable locally; runs in
+CI next.
 
 ### Acceptance
 
@@ -423,16 +447,24 @@ Developer B starts these tasks at H00 while Developer A works on the application
 
 | ID | Task | Priority | Depends on | Status |
 |---|---|---|---|---|
-| CICD-01 | Adapt GitHub Actions workflow | P0 | INF-04 | TODO |
-| CICD-02 | Configure secure AWS authentication | P0 | CICD-01 | TODO |
-| CICD-03 | Configure ECR image publishing | P0 | TF-04, CICD-02 | TODO |
-| CICD-04 | Configure EKS deployment step | P0 | TF-08, CICD-03 | TODO |
+| CICD-01 | Adapt GitHub Actions workflow | P0 | INF-04 | DONE |
+| CICD-02 | Configure secure AWS authentication | P0 | CICD-01 | DONE |
+| CICD-03 | Configure ECR image publishing | P0 | TF-04, CICD-02 | DONE |
+| CICD-04 | Configure EKS deployment step | P0 | TF-08, CICD-03 | DONE |
 | CICD-05 | Push frontend/backend images | P0 | K8S-03, CICD-03 | TODO |
 | CICD-06 | Deploy backend | P0 | CICD-05, K8S-09 | TODO |
 | CICD-07 | Verify Heroku PostgreSQL connectivity | P0 | CICD-06, DB-03 | TODO |
 | CICD-08 | Deploy frontend | P0 | CICD-05, K8S-09 | TODO |
 | CICD-09 | Verify public application URL | P0 | CICD-06, CICD-08 | TODO |
 | CICD-10 | Run production smoke tests | P0 | CICD-09, API-08 | TODO |
+
+**2026-10-14:** deploy/destroy workflows rewritten for this project: AWS auth
+via GitHub Secrets (`AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` — encrypted
+at rest, masked in logs; keys added by the user), SHA-tagged images per ECR
+repo, secret `flood-secrets` upserted from the `DATABASE_URL` GitHub secret at
+deploy time, rollout + public-URL verification. CICD-01..04 are configured;
+CICD-05+ need the `DATABASE_URL` GitHub secret and a real run (see
+`.ai/HANDOFF.md`).
 
 ### Acceptance
 

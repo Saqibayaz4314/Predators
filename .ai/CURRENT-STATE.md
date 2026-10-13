@@ -1,6 +1,17 @@
 # CURRENT STATE — Flood Digital Twin
 
-## Latest verified state — 2026-10-13 (GEO import complete)
+## Latest verified state — 2026-10-14 (Infrastructure adaptation)
+
+- **Phase:** Infrastructure (Developer B) — Terraform/K8s/GitHub Actions adapted from previous project.
+- **Terraform:** cluster `flood-digital-twin-eks`; ECR repos `flood-digital-twin-frontend` + `flood-digital-twin-backend`; `terraform fmt -check` exit 0; `terraform validate` PASSED locally. EKS `cluster_version 1.36` verified supported (AWS released 1.36 Oct 2026; cluster creator gets admin via `bootstrap_cluster_creator_admin_permissions`).
+- **Kubernetes:** namespace `flood-digital-twin`; `flood-frontend` (nginx 80, NLB) + `flood-backend` (3001, `/health` + `/ready` probes); MongoDB manifests removed; `secrets.example.yaml` template only (real secret from CI).
+- **CI/CD:** deploy/destroy workflows rewritten — AWS auth via GitHub Secrets (`AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY`, encrypted at rest + masked in logs), two ECR repos with SHA tags, `flood-secrets` upsert from `DATABASE_URL` GitHub secret, rollout + public URL verification. YAML parsed; not executed yet (needs `DATABASE_URL` secret + push).
+- **Docker:** `app/frontend/Dockerfile`, `app/backend/Dockerfile`, `app/frontend/nginx.conf`, `.dockerignore` created. Builds NOT RUN locally (Docker daemon off) — first build in CI.
+- **Backend compat fix:** `/ready` reports real dataset/graph state and self-heals cold graph cache; `server.ts` warms graph after listen. `tsc --noEmit` PASSED; foundation 16/16 PASSED; database.test.ts 17/17 PASSED (incl. updated /ready assertion).
+- **Known pre-existing failures:** flood.test.ts group C (3 tests, Developer A's in-flight routing/scenario routes) — recorded as TEST-ISSUE-001.
+- **Next actions (user):** AWS keys already added to GitHub Secrets (`AWS_ACCESS_KEY_ID` + `AWS_SECRET_ACCESS_KEY`, 2026-10-14); add `DATABASE_URL` GitHub secret (Heroku PostGIS connection string); push main → CI deploys.
+
+## Previous verified state — 2026-10-13 (GEO import complete)
 
 - **Phase:** Phase B complete — GEO-01 through GEO-07 DONE.
 - **Study area:** Sukkur / Rohri, Sindh (slug: sukkur-rohri, lon 68.80–68.97, lat 27.63–27.79)

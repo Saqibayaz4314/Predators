@@ -6,6 +6,7 @@
  * The pool is created lazily on first call to getPool() and closed via closePool().
  */
 import pg from 'pg';
+import { rdsCertificateAuthorities } from './rds-ca.js';
 import type { Env } from '../config/env.js';
 
 const { Pool } = pg;
@@ -19,16 +20,25 @@ let _initError: Error | null = null;
  * Build pg TLS options for Heroku-hosted PostgreSQL.
  *
  * Heroku requires SSL and provides a certificate signed by their CA.
- * We accept their self-signed cert by disabling hostname/cert verification
- * ONLY because this is a managed Heroku PostgreSQL endpoint — not arbitrary hosts.
- * For production-quality deployments, supply the Heroku CA bundle via DATABASE_CA_CERT.
+ * Trust Amazon's published RDS CA bundle for RDS endpoints. Other endpoints use
+ * the platform trust store or an explicit DATABASE_CA_CERT. Never bypass TLS.
  */
-function buildSslConfig(): pg.ConnectionConfig['ssl'] {
-  // Heroku requires SSL but the certificate is self-signed from their CA.
-  // rejectUnauthorized: false is intentional for Heroku's managed PostgreSQL.
-  // TODO: for production, set DATABASE_CA_CERT environment variable with
-  //       Heroku's CA certificate and switch to { ca: process.env.DATABASE_CA_CERT }.
-  return { rejectUnauthorized: false };
+export function databasePoolConfig(connectionString: string): pg.PoolConfig {
+  const url = new URL(connectionString);
+  // pg URL SSL parameters override the explicit TLS object. Always enforce
+  // certificate-chain AND hostname verification, including sslmode=require URLs.
+  for (const key of ['sslmode', 'sslcert', 'sslkey', 'sslrootcert']) url.searchParams.delete(key);
+  const ca = process.env.DATABASE_CA_CERT || (url.hostname.endsWith('.rds.amazonaws.com')
+    ? rdsCertificateAuthorities
+    : undefined);
+  return {
+    connectionString: url.toString(),
+    ssl: { rejectUnauthorized: true, ...(ca ? { ca } : {}) },
+    max: 5,
+    idleTimeoutMillis: 30_000,
+    connectionTimeoutMillis: 10_000,
+    allowExitOnIdle: false,
+  };
 }
 
 /**
@@ -36,16 +46,7 @@ function buildSslConfig(): pg.ConnectionConfig['ssl'] {
  * Connection pool is sized conservatively for a limited hosted database.
  */
 function createPool(connectionString: string): pg.Pool {
-  return new Pool({
-    connectionString,
-    ssl: buildSslConfig(),
-    // Conservative pool for Heroku Essential plan (max 25 connections)
-    max: 5,
-    idleTimeoutMillis: 30_000,
-    connectionTimeoutMillis: 10_000,
-    // Allow time for initial connection during startup
-    allowExitOnIdle: false,
-  });
+  return new Pool(databasePoolConfig(connectionString));
 }
 
 /**
@@ -64,8 +65,7 @@ export function getPool(env: Env): pg.Pool | null {
     // Attach pool-level error handler to prevent unhandled rejections.
     _pool.on('error', (err) => {
       // Safe to log the error type but not the connection details.
-      const safeMessage = err.message?.includes('password') ? '[redacted]' : err.message;
-      console.error(`[db] Pool client error: ${safeMessage}`);
+      console.error('[db] Pool client error');
     });
 
     return _pool;

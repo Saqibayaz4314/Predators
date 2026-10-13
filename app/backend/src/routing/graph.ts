@@ -168,6 +168,13 @@ export async function loadRoadGraph(
   studyAreaId: string,
   datasetVersion: string,
 ): Promise<RoadGraph> {
+  const dataset = await client.query<{ version: string }>(
+    `SELECT dv.version FROM study_areas sa JOIN dataset_versions dv ON dv.id = sa.dataset_version_id
+     WHERE sa.id = $1::uuid AND sa.is_active = TRUE AND dv.import_status = 'ready'`, [studyAreaId],
+  );
+  if (dataset.rows[0]?.version !== datasetVersion) {
+    throw Object.assign(new Error('The requested graph dataset is unavailable.'), { statusCode: 503, code: 'GRAPH_UNAVAILABLE' });
+  }
   const [arcs, nodes] = await Promise.all([
     loadArcs(client, studyAreaId),
     loadNodes(client, studyAreaId),

@@ -9,6 +9,12 @@ node_modules/
 k8s/secrets.yaml
 **/secrets.yaml
 
+# Local kubeconfig and private keys — never commit
+kubeconfig
+*.kubeconfig
+*.pem
+*.key
+
 # Build and test output
 dist/
 build/
@@ -38,6 +44,19 @@ terraform/*_override.tf.json
 *.sqlite3
 *.db
 data/
+
+# Raw geospatial datasets — large files, never commit
+dataset/*.pbf
+dataset/*.osm
+dataset/*.osm.gz
+dataset/*.zip
+dataset/extracted/
+dataset/clipped/
+dataset/processed/
+# Python virtual env for geo preprocessing
+scripts/geospatial/.venv/
+scripts/geospatial/__pycache__/
+scripts/geospatial/*.pyc
 
 # OS and editor files
 .DS_Store

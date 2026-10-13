@@ -1,0 +1,13 @@
+# Template only — copy to terraform.tfvars and adjust before use.
+# The real terraform.tfvars is gitignored and must never contain secrets.
+# Values below match the defaults in variables.tf.
+aws_region           = "ap-southeast-2"
+environment          = "production"
+cluster_name         = "flood-digital-twin-eks"
+cluster_version      = "1.36"
+ecr_repository_names = ["flood-digital-twin-frontend", "flood-digital-twin-backend"]
+availability_zones   = ["ap-southeast-2a", "ap-southeast-2b"]
+node_instance_types  = ["c7i-flex.large"]
+desired_node_count   = 2
+min_node_count       = 1
+max_node_count       = 4

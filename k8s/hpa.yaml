@@ -1,18 +1,17 @@
 apiVersion: autoscaling/v2
 kind: HorizontalPodAutoscaler
 metadata:
-  name: frontend-hpa
-  namespace: production
+  name: flood-frontend-hpa
+  namespace: flood-digital-twin
   labels:
-    app: my-webapp
-    role: frontend
+    app: flood-frontend
 spec:
   scaleTargetRef:
     apiVersion: apps/v1
     kind: Deployment
-    name: my-webapp-deployment
+    name: flood-frontend
   minReplicas: 2
-  maxReplicas: 5
+  maxReplicas: 4
   metrics:
   - type: Resource
     resource:
@@ -24,17 +23,19 @@ spec:
 apiVersion: autoscaling/v2
 kind: HorizontalPodAutoscaler
 metadata:
-  name: backend-hpa
-  namespace: production
+  name: flood-backend-hpa
+  namespace: flood-digital-twin
   labels:
-    app: backend
+    app: flood-backend
 spec:
   scaleTargetRef:
     apiVersion: apps/v1
     kind: Deployment
-    name: backend-deployment
-  minReplicas: 2
-  maxReplicas: 5
+    name: flood-backend
+  # The backend holds an in-memory graph cache per pod and uses a small
+  # bounded Heroku connection pool, so keep horizontal scaling conservative.
+  minReplicas: 1
+  maxReplicas: 2
   metrics:
   - type: Resource
     resource:

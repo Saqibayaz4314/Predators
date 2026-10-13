@@ -190,6 +190,12 @@ export function dijkstra(graph: RoadGraph, request: RouteRequest): RouteResult {
     segmentGeometries.push(arc.geometry);
     // Append coords (skip first coord of each arc after the first to avoid duplicates)
     const coords = arc.geometry.coordinates;
+    const previous = allCoords.at(-1);
+    const first = coords[0];
+    if (coords.length < 2 || !first || (previous &&
+      (Math.abs(previous[0]! - first[0]!) > 1e-7 || Math.abs(previous[1]! - first[1]!) > 1e-7))) {
+      throw new Error('Route geometry is discontinuous');
+    }
     if (allCoords.length === 0) {
       allCoords.push(...coords);
     } else {

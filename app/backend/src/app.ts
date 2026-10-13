@@ -5,6 +5,9 @@ import { ZodError } from 'zod';
 import type { Env } from './config/env.js';
 import type pg from 'pg';
 import { registerStatusRoutes } from './routes/status.js';
+import { registerRoutingRoutes } from './routes/routing.js';
+import { registerScenarioRoutes } from './routes/scenarios.js';
+import { registerStudyAreaRoutes } from './routes/studyAreas.js';
 
 export function buildApp(env: Env, pool: pg.Pool | null = null) {
   const app = Fastify({
@@ -25,7 +28,8 @@ export function buildApp(env: Env, pool: pg.Pool | null = null) {
     return reply.code(status).send({
       success: false,
       error: {
-        code: validation ? 'VALIDATION_ERROR' : status >= 500 ? 'INTERNAL_ERROR' : 'BAD_REQUEST',
+        code: validation ? 'VALIDATION_ERROR' : status >= 500 ? 'INTERNAL_ERROR' :
+          error instanceof Error && 'code' in error && typeof error.code === 'string' && /^[A-Z_]+$/.test(error.code) ? error.code : 'BAD_REQUEST',
         message: status >= 500 ? 'An unexpected server error occurred.' : 'The request could not be processed.',
       },
       meta: { requestId: request.id },
@@ -37,5 +41,14 @@ export function buildApp(env: Env, pool: pg.Pool | null = null) {
   }));
   app.register(cors, { origin: env.CORS_ORIGIN });
   app.register(async (instance) => registerStatusRoutes(instance, env, pool));
+  if (pool) {
+    app.register(async (instance) =>
+      instance.register(async (sub) => {
+        await registerRoutingRoutes(sub, pool);
+        await registerScenarioRoutes(sub, pool);
+        await registerStudyAreaRoutes(sub, pool);
+      }, { prefix: '/api/v1' })
+    );
+  }
   return app;
 }

@@ -1,25 +1,25 @@
 apiVersion: policy/v1
 kind: PodDisruptionBudget
 metadata:
-  name: frontend-pdb
-  namespace: production
+  name: flood-frontend-pdb
+  namespace: flood-digital-twin
   labels:
-    app: my-webapp
+    app: flood-frontend
 spec:
   minAvailable: 1
   selector:
     matchLabels:
-      app: my-webapp
+      app: flood-frontend
 ---
 apiVersion: policy/v1
 kind: PodDisruptionBudget
 metadata:
-  name: backend-pdb
-  namespace: production
+  name: flood-backend-pdb
+  namespace: flood-digital-twin
   labels:
-    app: backend
+    app: flood-backend
 spec:
   minAvailable: 1
   selector:
     matchLabels:
-      app: backend
+      app: flood-backend

@@ -1,6 +1,132 @@
 # AI AGENT HANDOFF — Flood Digital Twin
 
-## Latest handoff — 2026-10-13 (ROUTE-01 through ROUTE-08)
+## Latest handoff — 2026-10-14 (INF-01..06, TF-02/06, K8S, CICD adaptation)
+
+**Tasks:** INF-01..06, TF-02/TF-06, K8S-01..09 (config), CICD-01..04.
+**Status:** DONE at configuration level (AWS-dependent tasks remain TODO).
+**Workstream:** Developer B.
+
+### Summary
+
+Adapted the previous project's Terraform, Kubernetes and GitHub Actions
+configuration to Flood Digital Twin, and fixed a deployment blocker in the
+backend readiness path.
+
+**Terraform (`terraform/`)** — `terraform fmt -check -recursive` exit 0 and
+`terraform validate` PASSED (local, `init -backend=false`).
+- Cluster renamed `eks-prod-cluster` → `flood-digital-twin-eks`.
+- ECR module now creates two repos via `for_each`:
+  `flood-digital-twin-frontend`, `flood-digital-twin-backend`.
+- Outputs changed to `ecr_repository_urls` (map) / `ecr_repository_names`.
+- Fixed `type = string` indentation typo in `modules/eks/variables.tf`.
+- `terraform.tfvars` (gitignored) updated locally; committed
+  `terraform.tfvars.example` added as a template. Contains no secrets.
+- VPC module unchanged (generic). S3 backend still configured via
+  `-backend-config` in CI with key `flood-digital-twin/terraform.tfstate`.
+
+**Kubernetes (`k8s/`)** — all YAML parsed with PyYAML; cluster-level apply
+pending deploy.
+- Namespace: `flood-digital-twin`. Labels `app.kubernetes.io/part-of`
+  updated; `3-tier-app` and `production` references removed.
+- `backend.yaml` — deployment `flood-backend` + ClusterIP Service, port
+  3001, probes: liveness `/health`, readiness `/ready` (longer thresholds
+  for ~100s cold graph load), resources 250m/512Mi → 1C/1Gi.
+- `frontend.yaml` — deployment `flood-frontend` (nginx, port 80) + NLB
+  Service `flood-frontend-service` (internet-facing, port 80).
+- `configmap.yaml` — `flood-config`: NODE_ENV/HOST/PORT/LOG_LEVEL only.
+- `secrets.example.yaml` — template ONLY. Real `flood-secrets` is upserted
+  by CI from the `DATABASE_URL` GitHub secret; plaintext `secrets.yaml`
+  (previous project's MongoDB creds) DELETED.
+- `mongodb.yaml`, `deployment.yaml`, `service.yaml` DELETED — MongoDB is
+  not part of this project (Heroku PostGIS is external).
+- `hpa.yaml`/`pdb.yaml` — rewritten for `flood-frontend`/`flood-backend`
+  (backend HPA conservative: 1–2 replicas, Heroku pool max 5 conns/pod).
+- Public routing: frontend nginx reverse-proxies `/api/`, `/health`,
+  `/ready` to `flood-backend-service` — no ingress controller needed with
+  the existing NLB approach.
+
+**Docker** — NEW files (builds NOT RUN locally; Docker daemon unavailable,
+first real build happens in CI):
+- `app/frontend/Dockerfile` — root context, pnpm workspace build of
+  `@flood/shared` + frontend, nginx runtime with `app/frontend/nginx.conf`
+  (SPA fallback + API proxy + `/health`, `/ready` pass-through).
+- `app/backend/Dockerfile` — root context, pnpm workspace build of
+  `@flood/shared` + backend, prod-only deps runtime, `node dist/server.js`.
+- `.dockerignore` — excludes .git/.ai/docs/dataset/k8s/terraform/scripts,
+  node_modules, dist, .env files.
+
+**GitHub Actions (`.github/workflows/`)** — YAML parsed; not executed.
+- `deploy.yaml` — rewritten: AWS auth via GitHub Secrets
+  (`AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY`), project-specific
+  state bucket (`vars.TF_STATE_BUCKET` or computed `flood-digital-twin-
+  tfstate-<account>-<region>` with versioning + SSE-S3), two ECR repos,
+  SHA-tagged images, `flood-secrets` upsert from `DATABASE_URL` (passed via
+  env so it never appears in step source), image placeholder substitution
+  in workspace copies only, rollout + public-URL verification.
+- `destroy.yaml` — rewritten: same access-key auth, namespace/LB cleanup
+  first, terraform destroy with same backend config.
+
+**Backend deployment-compat change (small, verified)** — the graph cache
+loads lazily and `/ready` hardcoded `dataset/graph = false`, so a fresh pod
+could never pass a readiness probe (chicken-and-egg). Fixed:
+- `routes/status.ts` — `/ready` now checks `getReadyDatasetVersion()` and
+  `getGraphCacheStatus()`, and kicks off a background `getOrLoadGraph` when
+  the dataset is ready but the cache is cold (self-healing probe).
+- `server.ts` — non-blocking graph warmup after listen.
+- `routeService.ts` — `STUDY_AREA_ID`/`DATASET_VERSION` exported.
+- `tests/database.test.ts` — updated the stale
+  `'DB-01: /ready returns 503 while dataset is not initialized'` assertion
+  (dataset IS imported since GEO-07; now expects `graph: not_initialized`).
+
+### Verified
+
+| Command / procedure | Result |
+|---|---|
+| `terraform fmt -check -recursive` | PASSED (exit 0) |
+| `terraform init -backend=false && terraform validate` | PASSED |
+| PyYAML parse of all `k8s/*.yaml` + workflows | PASSED (8 files) |
+| `npx tsc --noEmit -p tsconfig.json` (backend) | PASSED |
+| `vitest run tests/foundation.test.ts` | PASSED 16/16 |
+| `vitest run tests/database.test.ts` (post-fix) | see Known issues |
+| `vitest run tests/flood.test.ts` | 3 pre-existing failures (NOT mine) |
+| Docker image builds | NOT RUN — Docker daemon not running locally |
+| GitHub workflow execution / kubectl apply | NOT RUN — no AWS creds/cluster |
+
+### Pre-existing failures (Developer A in-flight work — not from this task)
+
+`tests/flood.test.ts` group C (routing API endpoints): snap out-of-range
+404, dataset version mismatch 409, unknown scenario 404. These exercise
+`routes/routing.ts`/`routes/scenarios.ts` (staged, in-flight). Recorded in
+KNOWN-ISSUES; do not fix as part of infrastructure work without coordination.
+
+### Next steps (requires AWS/GitHub access)
+
+1. AWS keys are already in GitHub Secrets (`AWS_ACCESS_KEY_ID` +
+   `AWS_SECRET_ACCESS_KEY`, added by user 2026-10-14); workflows read them
+   in access-key mode. Keys are masked in logs automatically; rotate them
+   if they ever leak.
+2. Add `DATABASE_URL` GitHub secret (Heroku PostGIS URL — rotate per
+   SET-SEC-001 first).
+3. Optional: set `TF_STATE_BUCKET` repo variable, else CI derives it.
+4. Push to main → pipeline provisions VPC/ECR/EKS, builds both images,
+   deploys, waits for `/ready` 200, verifies public URL.
+5. Run K8S-03 (Docker builds), TF-07 (plan review), CICD-05..10.
+
+### Warnings
+
+- `terraform.tfvars` and `k8s/secrets.yaml` are gitignored; never commit
+  real values. `terraform.tfvars.example` / `secrets.example.yaml` are
+  templates.
+- Do not reuse the old `production` namespace or previous ECR image
+  refs (old account id `529976312848...` removed everywhere).
+- Old state bucket `openhack-tfstate-*` is NOT touched; new state key is
+  `flood-digital-twin/terraform.tfstate` in the (new or provided) bucket.
+- Frontend image bakes `VITE_API_BASE_URL=/api/v1` default — same-origin
+  proxy, no runtime env change will affect the built bundle.
+
+---
+
+## Previous handoff — 2026-10-13 (ROUTE-01 through ROUTE-08)
 
 **Tasks:** ROUTE-01..08. **Status:** DONE (tests IN_REVIEW — running). **Workstream:** Developer A.
 
@@ -45,7 +171,8 @@ Implemented the complete TypeScript Dijkstra routing engine:
 |---|---|
 | `pnpm typecheck` | PASSED |
 | 48 existing tests (graph + foundation + DB) | PASSED |
-| 34 routing tests | IN_REVIEW (vitest.config.ts hookTimeout=120s applied) |
+| 36 routing tests | **84/84 PASSED** — 101.77s (graph load ~100s from Heroku) |
+| Git commit | `32d2177` — feat(routing): implement ROUTE-01..08 |
 
 ### Next tasks
 

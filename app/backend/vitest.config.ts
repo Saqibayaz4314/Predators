@@ -1,8 +1,7 @@
 /**
  * Vitest configuration for @flood/backend
  *
- * hookTimeout increased to 120s for integration tests that load
- * the full Sukkur/Rohri road graph from Heroku PostGIS (29,448 edges).
+ * Hosted-database suites run serially to bound concurrent graph transfers.
  */
 import { defineConfig } from 'vitest/config';
 
@@ -10,12 +9,11 @@ export default defineConfig({
   test: {
     globals: false,
     environment: 'node',
-    hookTimeout: 120_000,   // 2 min — for Heroku graph load in beforeAll
-    testTimeout: 60_000,    // 1 min per test
-    pool: 'forks',
-    poolOptions: {
-      forks: { singleFork: true }, // share process so graph is loaded once
-    },
+    // Separate workers have separate caches and otherwise duplicate heavy
+    // hosted-DB graph transfers. Keep DB suites within the connection budget.
+    fileParallelism: false,
+    hookTimeout: 60_000,
+    testTimeout: 15_000,
     include: ['tests/**/*.test.ts'],
   },
 });

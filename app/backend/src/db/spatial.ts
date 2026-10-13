@@ -190,3 +190,92 @@ export async function queryRoutableEdges(
     geometry: JSON.parse(row.geometry) as object,
   }));
 }
+
+// ---------------------------------------------------------------------------
+// Query: Load road nodes for a study area (visualization / snapping)
+// ---------------------------------------------------------------------------
+export interface RoadNodeRow {
+  id: string;
+  lon: number;
+  lat: number;
+  source_osm_id: string | null;
+}
+
+/**
+ * Returns road nodes as plain coordinates.
+ * Used by the routing engine to build adjacency lists and by the frontend
+ * to render clickable node markers.
+ */
+export async function queryRoadNodes(
+  client: pg.PoolClient | pg.Pool,
+  studyAreaId: string,
+): Promise<RoadNodeRow[]> {
+  const result = await client.query<{
+    id: string;
+    lon: string;
+    lat: string;
+    source_osm_id: string | null;
+  }>(
+    `SELECT
+       n.id::text,
+       ST_X(n.geom) AS lon,
+       ST_Y(n.geom) AS lat,
+       n.source_osm_id::text
+     FROM road_nodes n
+     WHERE n.study_area_id = $1::uuid
+     ORDER BY n.id`,
+    [studyAreaId],
+  );
+  return result.rows.map((row) => ({
+    id: row.id,
+    lon: parseFloat(row.lon),
+    lat: parseFloat(row.lat),
+    source_osm_id: row.source_osm_id,
+  }));
+}
+
+// ---------------------------------------------------------------------------
+// Query: Road segments for map display (deduplicated to physical segments)
+// ---------------------------------------------------------------------------
+export interface RoadSegmentDisplayRow {
+  physical_segment_id: string;
+  highway_type: string;
+  road_name: string | null;
+  length_m: number;
+  geometry: object;
+}
+
+/**
+ * Returns unique physical road segments for frontend map rendering.
+ *
+ * Uses DISTINCT ON (physical_segment_id) to return each physical road
+ * segment exactly once — avoids double-rendering bidirectional arcs.
+ */
+export async function queryRoadSegmentsForDisplay(
+  client: pg.PoolClient | pg.Pool,
+  studyAreaId: string,
+): Promise<RoadSegmentDisplayRow[]> {
+  const result = await client.query<{
+    physical_segment_id: string;
+    highway_type: string;
+    road_name: string | null;
+    length_m: number;
+    geometry: string;
+  }>(
+    `SELECT DISTINCT ON (physical_segment_id)
+       physical_segment_id::text,
+       highway_type,
+       road_name,
+       length_m,
+       ST_AsGeoJSON(geom)::text AS geometry
+     FROM road_edges
+     WHERE study_area_id = $1::uuid
+       AND is_routable = TRUE
+     ORDER BY physical_segment_id, id`,
+    [studyAreaId],
+  );
+  return result.rows.map((row) => ({
+    ...row,
+    geometry: JSON.parse(row.geometry) as object,
+  }));
+}
