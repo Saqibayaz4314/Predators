@@ -3,7 +3,7 @@ import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { shelterListSchema, type StudyArea } from '@flood/shared';
 import { ShelterInspector } from './ShelterInspector';
-import { getShelterReachability, getAnalysisComparison } from './accessibility-api';
+import { getShelters, getShelterReachability, getAnalysisComparison } from './accessibility-api';
 import { mapCollections } from './map-layers';
 
 const area: StudyArea = { id: '020ce29e-ec4f-4514-b14f-58c1252191cc', slug: 'sukkur-rohri', name: 'Sukkur', datasetVersion: 'v1', isActive: true, mapCenter: { longitude: 68.85, latitude: 27.7 }, defaultZoom: 12 };
@@ -16,6 +16,15 @@ it('shows honest empty live data without invented available counts', () => {
   expect(markup).toContain('No verified shelter data available');
   expect(markup).not.toContain('Accessible shelters');
   expect(markup).toContain('does not confirm shelter safety');
+  // A successful empty result is data, never a failure notice.
+  expect(markup).not.toContain('analysis request failed');
+  expect(markup).not.toContain('Retry shelters');
+});
+it('renders an actionable shelter error with retry when the request failed', () => {
+  const markup = renderToStaticMarkup(createElement(ShelterInspector, { list: undefined, analysis: undefined, selectedId: null, onSelect: () => {}, onRoute: () => {}, originSelected: false, busy: false, error: 'This analysis endpoint is not available on the connected service. Reload the workspace or restart the analysis service.', retry: () => {} }));
+  expect(markup).toContain('This analysis endpoint is not available on the connected service.');
+  expect(markup).toContain('Retry shelters');
+  expect(markup).not.toContain('No verified shelter data available');
 });
 it('labels hypothetical fixtures, unknown capacity and unevaluated access', () => {
   const markup = render();
@@ -41,4 +50,9 @@ it('sends cancellable versioned scenario comparisons with no invented destinatio
   await expect(getAnalysisComparison('/api/v1', area, [id], '1')).rejects.toThrow('dataset changed');
   expect(JSON.parse(fetch.mock.calls[0]![1].body)).toEqual({ studyAreaId: area.id, scenarioIds: [id], originNodeId: '1', expectedDatasetVersion: 'v1' });
   expect(fetch.mock.calls[0]![1].signal).toBeInstanceOf(AbortSignal);
+});
+it('resolves an empty shelter directory as data, not as a failed request', async () => {
+  const data = { items: [], datasetVersion: 'v1', dataMode: 'live', maxSnapDistanceMeters: 500, disclaimer: 'Prototype' };
+  vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify({ success: true, data, meta: { requestId: '1', datasetVersion: 'v1' } }))));
+  await expect(getShelters('/api/v1', area)).resolves.toEqual(data);
 });

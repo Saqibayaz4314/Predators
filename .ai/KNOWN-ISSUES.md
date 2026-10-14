@@ -1,5 +1,22 @@
 # KNOWN ISSUES & BLOCKER REGISTER
 
+## Shelter accessibility failure — 2026-10-14 (SHELTER-API-001 — RESOLVED)
+
+- **Symptom:** workspace right sidebar showed "Shelter accessibility — The analysis request failed. Retry or choose another point." while map, polygons and routing worked.
+- **Root cause (confirmed, live reproduction):** the Vite dev frontend (5173, default `API_PROXY_TARGET`) proxied to a STALE pre-shelter backend on 3001 (PID 25020, started 01:17). `GET /api/v1/study-areas/020ce29e-.../shelters` returned **HTTP 404** with envelope code `NOT_FOUND`. The frontend `readApi` mapped only 4 of the backend's 23 domain codes, so `NOT_FOUND` fell through to the misleading generic message. The current backend (verified on 3002 and via the 169-test suite) was never broken: live mode returns an honest empty shelter directory, never invented records.
+- **Fix:** `geospatial-api.ts` maps all backend domain codes (+ NOT_FOUND/VALIDATION_ERROR/BAD_REQUEST/INTERNAL_ERROR/SERVICE_NOT_READY) to actionable messages and attaches `code`/`retryAfterSeconds` to thrown errors; 5 new frontend regression tests distinguish a successful empty result from a failed request. Stale 3001 process replaced by the freshly built current `dist` (live mode); shelter endpoints and the demo rerouting regression verified 200 on 3001.
+- **Residual risk (documented, low):** any long-running local backend started before a rebuild will keep serving its old routes; the new NOT_FOUND message now directs users to reload/restart the analysis service instead of blaming selected points.
+
+
+## Local integration state — 2026-10-14 (bff3af6)
+
+- **INTEGRATION-001 — VERIFIED:** LOCAL main = `bff3af6` (merge of backend remediation `9bef2b8` + frontend screens `95ef2e3`), clean tree, zero conflicts. Full post-merge verification passed: shared build; backend typecheck/build; backend 169/169 (live DB); frontend typecheck + 41/41; Vite production build; `verify-demo.mjs` (read-only); secret scan over the entire unpushed diff clean. Merge touched only `app/frontend`.
+- **AI-05/API-11-FRONTEND — OPEN (authorized, research complete, NOT started):** the Reports "AI Decision Brief" panel and the About-Data provenance panel are still static honest placeholders. The user authorized implementing them; a complete, verified implementation plan (backend contract facts incl. the missing `meta.datasetVersion` on `/ai/explain`, frontend architecture notes, manual-request gating design, test strategy) is in `.ai/HANDOFF.md` (latest section). No implementation files were written.
+- **DEPLOY-BLOCKER-001 — OPEN (user action):** `DATABASE_URL` GitHub secret must be confirmed before push (INFRA-TODO-001); without it backend `/ready` stays 503 in-cluster and the deploy pipeline's rollout wait fails.
+- **AI-SEC-001 — OPEN (user action, unchanged):** optional `DO_GPT_OSS_API_KEY` GitHub secret for production AI; until added, production honestly serves `deterministic_fallback` only.
+- **UNCOMMITTED-ARTIFACTS-001 — INTENTIONAL:** Sol's worktree at `C:\Users\SAMEER\.codex\worktrees\frontend-screens\Predators` holds 16 uncommitted browser-artifact entries (verification evidence). Preserve; do not commit, modify or discard.
+- **NOT PUSHED:** main is 9 commits ahead of origin/main (`44006c0`). Push/deploy requires explicit user authorization.
+
 ## AI explanation + provenance verification — 2026-10-14
 
 - **AI-VERIFY-001 — RESOLVED:** DigitalOcean GPT-OSS 120B endpoint verified with one minimal smoke request — HTTP 200, title/summary/observations/limitations parsed, grounding validation PASSED. The model is a reasoning model; an early 80-token probe returned `finish_reason: length` with empty content, so `AI_MAX_OUTPUT_TOKENS` now defaults to 1000.

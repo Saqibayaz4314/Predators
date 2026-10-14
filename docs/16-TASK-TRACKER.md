@@ -4,6 +4,8 @@
 
 SHELTER-02..08 DONE: 500m validated connection policy, read-only directory, single-source baseline/scenario reachability, explicit reasons/flood flags, selectable map markers, inspector counts/details and tests. SHELTER-01 BLOCKED: existing live shelter table has0rows and no verified locations are available to import. Hypothetical test/development fixtures are explicitly labeled, localhost-only and never written to the database. Do not mark live import complete.
 
+**2026-10-14 (shelter accessibility debug — RESOLVED):** workspace sidebar failure "Shelter accessibility — The analysis request failed" was caused by the dev frontend (5173) proxying to a STALE pre-shelter backend on 3001 (404 NOT_FOUND on the shelter routes), plus the frontend collapsing unmapped backend codes into a misleading generic message. Backend code verified correct (200 + honest empty live directory on 3002; 169/169 suite). Fix: `geospatial-api.ts` now maps every backend domain code (incl. NOT_FOUND/RATE_LIMITED) to actionable messages with `code`/`retryAfterSeconds` metadata; +5 frontend regression tests distinguish successful empty results from failed requests; 3001 restarted from the current `dist` (live mode) and shelter/reachability/routing endpoints verified 200. Frontend 46/46, backend 169/169, builds PASSED. No commit (tree not clean), no push, no deploy.
+
 EXTRA-01 DONE as explicitly assigned Phase2: responsive A/B/C comparison with actual PostGIS counts, valid routing deltas/states, shelter summaries and unique/shared closure sets. Full working-tree backend136/136 and frontend38/38 PASSED; typechecks/builds, real-data API verifier and both production-preview browser suites PASSED. Native modal/touch/Light/Dark/mobile layouts inspected. QA-04 still IN_REVIEW for the Cypress-specific deliverable; Playwright now covers shelter scenarios. Broad accessibility and public deployment gates remain open. Next: verified shelter provenance and controlled import, then deployment smoke tests.
 
 
@@ -530,7 +532,7 @@ CICD-05+ need the `DATABASE_URL` GitHub secret and a real run (see
 | AI-02 | Verify DigitalOcean AI provider | A | P1 | AI-01 | DONE |
 | AI-03 | Implement AI provider adapter | A | P1 | AI-02 | DONE |
 | AI-04 | Validate AI output | A | P1 | AI-03 | DONE |
-| AI-05 | Integrate explanation panel | A | P1 | AI-04, UI-10 | TODO |
+| AI-05 | Integrate explanation panel | A | P1 | AI-04, UI-10 | DONE |
 
 AI-01..04 verified 2026-10-14: `POST /api/v1/ai/explain` (P1) implemented
 with the DigitalOcean GPT-OSS 120B adapter (`openai-gpt-oss-120b` on
@@ -545,6 +547,14 @@ to `source: "deterministic_fallback"` — never HTTP 500. 23 AI tests pass
 /api/v1/data/provenance` returns real dataset provenance (Sukkur/Rohri,
 `sukkur-osm-2026-10-v1`, ODbL). AI-05 (frontend explanation panel) remains
 open — backend is ready for it.
+
+**2026-10-14 (integration session):** LOCAL main = `bff3af6` — backend
+remediation (`9bef2b8`) and frontend screens (`95ef2e3`) merged with zero
+conflicts; post-merge verification passed (backend 169/169, frontend 41/41,
+all builds/typechecks, read-only demo verifier, secret scan). AI-05 + API-11
+frontend wiring is user-authorized with a complete researched implementation
+plan in `.ai/HANDOFF.md` (latest section) — no code written yet. Nothing
+pushed or deployed.
 | EXTRA-01 | Cross-scenario comparison | A | P2 | FLOOD-07 | DONE |
 | EXTRA-02 | Downloadable analysis report | A | P2 | API-05 | TODO |
 

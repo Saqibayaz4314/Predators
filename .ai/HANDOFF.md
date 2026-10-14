@@ -1,5 +1,91 @@
 # AI AGENT HANDOFF — Flood Digital Twin
 
+## Latest handoff — 2026-10-14 (AI-05/API-11 frontend complete; live DB latency under investigation)
+
+**Status:** Frontend integration COMPLETE and pushed to main (user-authorized). Frontend-only changes: `ai-api.ts`, `AiBrief.tsx`, `data-api.ts` (+ tests), rewired `ReportsScreen.tsx`/`DataScreen.tsx`/`Application.tsx`, `.ai-brief`/`.provenance-panel` styles. Typecheck exit 0, 67/67 frontend tests, production build PASSED. Backend/shared untouched.
+
+### Open issue — intermittent multi-row delivery latency to Heroku PostGIS
+
+- `GET /study-areas/:id/roads` (15,152 rows, ~4.2MB) intermittently takes 56-93s wall time locally, while `EXPLAIN (ANALYZE)` of the identical query computes in ~43-70ms server time, a 5MB single-value SELECT transfers in ~181ms, and tiny queries round-trip in ~151ms. The slowdown is therefore NOT compute (no CPU-credit exhaustion), NOT network throughput, and NOT temp-spill contention (raising `work_mem` to 128MB — fully in-memory quicksort — did not help: 93.5s).
+- ClientWrite/ClientRead pg_stat_activity states match a stalled multi-row result stream on the local→Heroku path; frontend 45s `AbortSignal.timeout` aborts before delivery completes, so the roads layer renders empty (`data-roads="0"`), and vitest graph-load hooks (60s) fail intermittently in the same window. `verify-demo.mjs` still passes end-to-end (no tight timeouts).
+- Next probes: time the same row set with geometry as `::text` vs `::json`, and without geometry, to isolate json_out vs per-row protocol framing; consider a fetch timeout bump for `/roads` or a paginated/streamed read path if the stall is structural. Live EKS → Heroku path may not exhibit this.
+
+## Latest handoff — 2026-10-14 (shelter accessibility failure debugged — SHELTER-API-001)
+
+**Status:** RESOLVED. Root cause was NOT the application code — the workspace dev frontend (Vite 5173, default `API_PROXY_TARGET`) was proxying to a STALE local backend on port 3001 (started 01:17 from a pre-shelter build) that returns `404 NOT_FOUND` for the shelter routes. The current backend code was verified correct. Fix: hardened the frontend error mapping, added regression tests, and restarted the 3001 backend from the freshly built current `dist` (live mode, `SHELTER_DEMO=false`). The right sidebar now shows the honest empty state instead of the misleading failure.
+
+### Evidence chain (all verified live)
+
+- Stale 3001 (PID 25020, started 01:17, pre-shelter build): `GET /api/v1/study-areas/020ce29e-ec4f-4514-b14f-58c1252191cc/shelters` → **HTTP 404**, envelope `{"success":false,"error":{"code":"NOT_FOUND","message":"The requested endpoint does not exist."}}`.
+- Current build on 3002 (shelter workstream server): same request → 200 with `items: []`, `dataMode: "live"`; `POST /shelters/reachability` (origin 529, Bridge Corridor `a1b2c3d4-0002-...`) → 200, honest zero summary. Backend logic was never broken.
+- Frontend `readApi` mapped only 4 of the backend's 23 domain codes; `NOT_FOUND` fell through to the generic "The analysis request failed. Retry or choose another point." — the exact message reported in the sidebar.
+- After restart, 3001 serves the shelter routes; routing regression unchanged (compare 529→806: baseline 4,417.8 m → scenario 4,981.7 m); the 5173→3001 proxy chain returns 200 for the shelter directory.
+
+### Changes (uncommitted — working tree was not clean, NO commit made)
+
+- `app/frontend/src/geospatial-api.ts` — `errorMessages` now covers every backend domain code from the `app.ts` whitelist plus `NOT_FOUND`/`VALIDATION_ERROR`/`BAD_REQUEST`/`INTERNAL_ERROR`/`SERVICE_NOT_READY`; the `!response.ok` path attaches `code` and (for RATE_LIMITED) `retryAfterSeconds` parsed from the `retry-after` header to the thrown Error. Existing four messages byte-identical.
+- `app/frontend/src/geospatial-api.test.ts` — +3 regression tests: NOT_FOUND maps to the actionable endpoint-availability message; RATE_LIMITED carries `retryAfterSeconds`; unmapped codes keep the generic fallback.
+- `app/frontend/src/accessibility.test.ts` — +2 tests: successful empty directory resolves as data (never a failure); ShelterInspector renders an actionable error + Retry when the request failed. Empty-state test now also asserts the failure notice is absent.
+
+### Verification (ALL PASSED)
+
+- Frontend `tsc --noEmit` exit 0; frontend **46/46** (was 41); Vite production build PASSED (known MapLibre chunk advisory only).
+- Backend `tsc --noEmit` + `tsconfig.build.json` exit 0; backend **169/169** (11 files, live Heroku PostGIS).
+- Runtime: 3001 restarted (PID 15036, log `.server-3001.log`); shelter list, reachability, snap and route compare verified 200; dev proxy chain 5173→3001 verified 200.
+
+### Warnings / next
+
+- The stale-3001 failure mode can recur on any fresh clone: a Vite dev server started before the backend is restarted from current sources will keep proxying to whatever build was on 3001. The new `NOT_FOUND` message now says "Reload the workspace or restart the analysis service" instead of misleading about points.
+- `RATE_LIMITED`/`retryAfterSeconds` metadata was added per the pre-authorized AI-05 plan note — the Reports AI panel can now distinguish rate limits from other errors.
+- No push, no deploy, no commit (working tree held other agents' uncommitted `.ai/*` + task-tracker edits).
+
+
+## Latest handoff — 2026-10-14 (local integration complete; AI-05/API-11 frontend wiring authorized + fully researched, NOT started)
+
+**Status:** Backend remediation and frontend screens branches are merged into LOCAL main (`bff3af6`), fully verified, clean tree, nothing pushed. The next task — frontend AI Decision Brief + Data Provenance integration — was authorized by the user; all contract and architecture research is complete, but NO implementation files were written before this session's credits ran out. **Implement directly from the plan below.**
+
+### Current git state (verified 2026-10-14)
+
+- `main` = `bff3af6cd45957fa1df15d6154a10247747adeb6` (merge commit; parents `9bef2b8` + `95ef2e3`); working tree clean; 9 commits ahead of origin/main (`44006c0`). **No push/deploy has been authorized beyond the local merge.**
+- Branches: `fix/backend-audit-remediation` @ `9bef2b8`; `codex/frontend-screens` @ `95ef2e3` in worktree `C:\Users\SAMEER\.codex\worktrees\frontend-screens\Predators`, which still holds 16 intentionally uncommitted artifact entries (14 modified tracked + 2 untracked dirs under `app/frontend/artifacts/`). **Do not modify or discard them.**
+- Verification baseline: shared build, backend typecheck + build, backend 169/169 (11 files, live Heroku PostGIS DB), frontend typecheck, frontend 41/41 (7 files), Vite production build, `scripts/verify-demo.mjs`, and a secret scan over the full unpushed diff — ALL PASSED.
+
+### NEXT TASK — user-authorized scope (binding requirements)
+
+1. **AI Decision Brief on `/reports`** — integrate `POST /api/v1/ai/explain` (AI-05).
+2. **Data Provenance on `/about-data`** — integrate `GET /api/v1/data/provenance`; optionally `GET /study-areas/:id/summary` for authoritative graph stats (DataScreen currently says "Graph nodes: Not exposed by current API" — it now is).
+
+Requirements from the authorization: reuse the actual studyAreaId + selected scenarioId from application state (never hardcode); explicit "Generate AI Decision Brief" action; display title/summary/observations/limitations; clearly distinguish `source: 'ai'` from `'deterministic_fallback'` (never present fallback text as model output); loading, timeout, error, retry and empty states; graceful HTTP 429; preserve scenario selection and map state; AI text must never override deterministic routing distances, closure counts or shelter status; label all flood scenarios simulated; no provider key in frontend code; **no automatic paid AI requests on page load or scenario switching**. Provenance: show dataset version, OSM source/attribution, license, retrieved/imported timestamps, simulated classification, road-routing + shelter-data limitations; handle null/missing fields honestly (`retrievedAt` is nullable); never fabricate shelter data. Frontend files only; do not touch backend, shared schemas, terraform, k8s, workflows or Sol's worktree; no new dependencies; one LOCAL commit only after full verification; stop after reporting; no push/deploy.
+
+### Backend contract facts (verified by reading the code — do not re-derive)
+
+- AI request schema (`packages/shared/src/ai.ts`): `{ studyAreaId: uuid, scenarioId: uuid | 'baseline', originNodeId?: graphId, destinationNodeId?: graphId, language: 'en'|'ur'|'sd' }`. Build with `language: 'en'` (the app is English-only).
+- `ai.service.ts` semantics: studyAreaId must equal the ACTIVE study area (else 404 STUDY_AREA_NOT_FOUND); scenarioId `'baseline'` or an existing scenario UUID (else 404 SCENARIO_NOT_FOUND); if BOTH originNodeId and destinationNodeId are present the route context is computed (baseline route or full comparison); if originNodeId is present, shelter evaluation also runs; if either node is missing, route context is `not_requested`. 4xx errors from routing/shelter propagate to the client. Include origin/destination node IDs only when their `datasetVersion` matches the active area's (stale points would 400/409 the whole brief — omit them instead; the brief still generates from impact data).
+- AI response data schema: `{ title (3–160), summary (10–1500), observations (1–6 × 3–400 chars), limitations (1–6 × 3–400 chars), language, source: 'ai' | 'deterministic_fallback', classification: 'simulated' }`.
+- **CRITICAL envelope detail:** the `/ai/explain` success envelope meta contains ONLY `requestId` — **no `datasetVersion`**. The frontend `readApi(...)` helper must therefore be called WITHOUT `expectedVersion` for AI (passing it would always throw DATASET_VERSION_MISMATCH). Prevent staleness with query keys instead.
+- Provenance data: `{ studyAreaId, datasetVersion, osmSource, osmLicense, retrievedAt (ISO datetime, NULLABLE), importedAt, floodScenarioClassification: 'simulated', roadRoutingLimitations: string[], shelterDataLimitations: string[], attribution: string[] }`; its envelope meta DOES include `datasetVersion` (safe to pass `expectedVersion` and add a data context check like `getShelters` does).
+- `GET /study-areas/:id/summary` (API-013): `{ studyAreaId, datasetVersion, totalPhysicalRoadSegments, totalDirectedArcs, totalGraphNodes, totalShelterCandidates, totalSimulatedScenarios, dataStatus: 'ready' }`; meta includes `datasetVersion`.
+- Rate limit: ai/explain 20/min. 429 responses use the standard error envelope with code `RATE_LIMITED` (whitelisted in the global error handler); @fastify/rate-limit sets a `retry-after` header — parse it when present (positive integer seconds).
+
+### Frontend architecture facts (verified — follow these)
+
+- `src/geospatial-api.ts` exports `readApi(base, path, schema, signal?, payload?, expectedVersion?)`: GET, or POST when a payload is given; 45 s `AbortSignal.timeout`; maps envelope error codes to curated messages via the `errorMessages` record; validates with `apiSuccessSchema` + the data schema. Minimal change needed for 429: attach `code` and `retryAfterSeconds` (parsed from the `retry-after` header) to the thrown Error in the `!response.ok` path, and add `RATE_LIMITED` + `ANALYSIS_UNAVAILABLE` entries to `errorMessages`. Keep existing thrown messages byte-identical — `geospatial-api.test.ts` asserts them.
+- Patterns to copy: `src/accessibility-api.ts` (POST + response context checks), `src/screen-data.ts` (query-key conventions: `['areas', base]`, `['roads', base, areaId, datasetVersion]`), ReportsScreen's existing `useQuery({ enabled: valid && state.requested, ... })` manual gating.
+- Workspace state (`src/workspace-store.ts`): `scenarioId` (default `'baseline'`), `origin`/`destination` (`SnapResult | null` with `nodeId` and `datasetVersion`), `requested`. ReportsScreen receives `data` (from `useScreenData`; `data.area` is the active `StudyArea`) and `apiBaseUrl`.
+- `src/ReportsScreen.tsx` currently renders a static `aside.screen-panel.ai-pending` "BACKEND INTEGRATION PENDING" placeholder — replace it with the live panel. **Keep the deterministic markdown report (`src/report-content.ts`) unchanged** — `screens.test.ts` asserts it still contains 'Pending verified backend integration'.
+- `src/DataScreen.tsx` needs `apiBaseUrl` (Application.tsx currently passes only `data` to it — one-line change there) and a provenance panel; update the first methodology section's note, which says provenance is "pending verification of the Data Provenance API" (no longer true once wired).
+- Testing setup: node environment, `vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(...)))` for API-client tests; `renderToStaticMarkup(createElement(Component, props))` for components (`screens.test.ts` pattern). There is NO @testing-library/react and no jsdom — do not add dependencies. Design pure helpers (source labeling, context-key gating, 429 error mapping) and presentational subcomponents so every required behavior is testable via static rendering + unit assertions. Envelope mocks: success `{ success: true, data, meta: { requestId: 'test' } }` (AI: no datasetVersion in meta; provenance/summary: include `meta.datasetVersion`).
+- Prepared design (not yet implemented): manual-trigger gate — a `useState` string stores the last requested context key (`areaId|datasetVersion|scenarioId|originNode|destinationNode`); the query is `enabled` only while the current context key equals it, so page load and scenario/point switching never auto-fire a paid request (the panel returns to its empty state with the Generate button). `retry: false` on the AI query (paid endpoint — retries are explicit user actions only, via a Retry button calling `query.refetch()`). Query key: `['ai-brief', apiBaseUrl, contextKey]`, `staleTime: 300000`. Display states: empty (Generate button + explanation), loading, error (with rate-limit-specific message when `error.code === 'RATE_LIMITED'`, plus retry-after seconds), success (title, summary, observations, limitations, source badge — "Hosted model output (DigitalOcean inference)" vs "Deterministic fallback — not model output", simulated-scenario note, and a note that AI narrative never overrides the computed report).
+
+### Verification commands (run after implementation, before the single local commit)
+
+- `packages/shared`: `node ..\..\node_modules\typescript\bin\tsc -p tsconfig.json`
+- `app/backend`: `node ..\..\node_modules\typescript\bin\tsc --noEmit`; `node ..\..\node_modules\typescript\bin\tsc -p tsconfig.build.json`; `node ..\..\node_modules\vitest\vitest.mjs run` (expect 169/169)
+- `app/frontend`: `node ..\..\node_modules\typescript\bin\tsc --noEmit`; `node ..\..\node_modules\vitest\vitest.mjs run` (expect 41+); `node node_modules\vite\bin\vite.js build`
+- `app/backend`: `node scripts/verify-demo.mjs` (verified read-only; requires ignored `.env` + compiled packages)
+- PowerShell notes: never use `&&`; run long suites in the FOREGROUND with a large timeout (background terminals previously failed to spawn vitest on this machine).
+- Remaining deploy blockers after this task: `DATABASE_URL` GitHub secret (required — otherwise /ready stays 503 in-cluster and the pipeline's rollout wait fails) and optional `DO_GPT_OSS_API_KEY` (production AI honestly serves deterministic fallback without it). Then push main with user approval.
+
 ## Latest handoff — 2026-10-14 (AI-01..04 / API-11 — AI explanation engine + provenance)
 
 **Status:** AI explanation and data-provenance endpoints implemented and verified. Two local commits, no push, merge, reset or database writes. Shelter/comparison work (9303e3a) untouched; status fix committed separately as eb23831.

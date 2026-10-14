@@ -1,5 +1,9 @@
 # ARCHITECTURE DECISION RECORD — Flood Digital Twin
 
+## INTEGRATION-001 — Local main integration sequence (ACCEPTED, 2026-10-14)
+
+Backend remediation and the frontend screens milestone were integrated into LOCAL main with a verified, conflict-free sequence: `git checkout main` → `git merge --ff-only fix/backend-audit-remediation` (e775219 → 9bef2b8, history preserved) → `git merge --no-ff codex/frontend-screens` producing merge commit `bff3af6` (parents 9bef2b8 + 95ef2e3). No reset, rebase, squash or force-push anywhere. The merge provably touched only `app/frontend` (`git diff 9bef2b8..bff3af6` empty for backend/shared/infra/docs), so the audited backend error-handling, rate limiting and shared contracts are byte-identical on main. Post-merge gates passed: shared build, backend typecheck/build + 169/169 tests (live DB), frontend typecheck + 41/41 tests + Vite build, read-only demo verifier, and a secret scan over the entire unpushed diff. Main is 9 commits ahead of origin/main and remains unpushed until the user authorizes push/CI. AI-05/API-11 frontend wiring is the next authorized task; its full researched plan lives in the latest section of `.ai/HANDOFF.md`.
+
 ## SHELTER-001 — Empty live data and isolated hypothetical fixtures (ACCEPTED, 2026-10-14)
 
 No verified shelter rows exist. Do not seed the live database with invented facilities. SHELTER_DEMO defaults false, is rejected in production and requires localhost binding in development. Fixtures exist only in memory and clearly label hypothetical graph destinations; capacity/operations remain unknown. Live API keeps an honest empty directory. Locations may be null if invalid so unknown candidates survive without invalid map markers. Connections are recomputed within500m against the active graph; no stored association is silently reused across versions. Polygon intersection remains a separate spatial flag.

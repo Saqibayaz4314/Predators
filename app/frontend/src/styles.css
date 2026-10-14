@@ -353,7 +353,15 @@
 .report-paper section { padding-block:24px; border-top:1px solid var(--atlas-border); }
 .report-paper section h3 { margin-bottom:16px; font-size:16px; }
 .report-pending { padding:18px; background:var(--atlas-surface-alt); border:1px solid var(--atlas-border); border-radius:4px; }
-.ai-pending { align-self:start; }
+.ai-brief { align-self:start; }
+.ai-brief .ai-source-badge { display:inline-flex; align-items:center; gap:8px; margin-block:12px; padding:6px 10px; border:1px solid var(--atlas-border-control); border-radius:4px; background:var(--atlas-surface-alt); color:var(--atlas-text-secondary); font-size:11px; font-weight:650; letter-spacing:.03em; }
+.ai-brief .ai-source-badge.model { border-color:var(--atlas-accent); color:var(--atlas-accent); background:var(--atlas-accent-subtle); }
+.ai-brief .ai-summary { font-size:13px; }
+.ai-brief h3 { margin-block:14px 6px; }
+.ai-brief .secondary-button { margin-top:16px; }
+.provenance-panel { margin-block:24px 0; }
+.provenance-panel .report-metadata { margin-block:20px; }
+.provenance-notes h3 { margin-block:16px 4px; }
 .limitations-list { padding-left:20px; color:var(--atlas-text-secondary); font-size:12px; line-height:1.8; }
 .limitations-list li+li { margin-top:10px; }
 .report-feedback { margin-bottom:20px; color:var(--atlas-accent); }
