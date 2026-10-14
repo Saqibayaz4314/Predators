@@ -36,7 +36,7 @@ try {
     if (response.status() === 200 && response.url().includes('openfreemap') && response.url().includes('.pbf')) vectorTiles++;
     if (response.status() === 200 && response.url().includes('maplibre-gl-worker')) workerLoaded = true;
   });
-  await page.goto(base);
+  await page.goto(base + '/workspace');
   await sourceCount(page, 'roads', 15152);
   await waitReady(page);
   assert(vectorTiles > 0, 'Vector tiles must actually load');
@@ -92,7 +92,7 @@ try {
 
   const mobileContext = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, deviceScaleFactor: 1, colorScheme: 'light' });
   const mobile = await mobileContext.newPage(); mobile.on('pageerror', (error) => errors.push(error.message));
-  await mobile.goto(base); await sourceCount(mobile, 'roads', 15152); await waitReady(mobile);
+  await mobile.goto(base + '/workspace'); await sourceCount(mobile, 'roads', 15152); await waitReady(mobile);
   assert(await mobile.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth));
   const beforeZoom = await mobile.locator('.map-footnote').innerText();
   await mobile.getByRole('button', { name: 'Zoom in', exact: true }).tap();
@@ -133,7 +133,7 @@ try {
   const emptyContext = await browser.newContext({ viewport: { width: 390, height: 844 } });
   const empty = await emptyContext.newPage();
   await empty.route('**/api/v1/study-areas', (route) => route.fulfill({ contentType: 'application/json', body: JSON.stringify({ success: true, data: { items: [] }, meta: { requestId: 'browser-test' } }) }));
-  await empty.goto(base); await empty.getByRole('heading', { name: 'No active dataset' }).waitFor();
+  await empty.goto(base + '/workspace'); await empty.getByRole('heading', { name: 'No active dataset' }).waitFor();
   assert(await empty.getByRole('button', { name: 'Calculate routes' }).isDisabled());
   await emptyContext.close();
   results.push({ check: 'Empty dataset state', status: 'PASSED' });

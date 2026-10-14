@@ -1,0 +1,37 @@
+import assert from 'node:assert/strict';
+import {mkdir,writeFile} from 'node:fs/promises';
+import {chromium} from 'playwright';
+const base=process.env.TEST_BASE_URL||'http://127.0.0.1:4180';
+const output=new URL('../artifacts/screens/',import.meta.url);await mkdir(output,{recursive:true});
+const browser=await chromium.launch({channel:'chrome',headless:true,args:['--enable-unsafe-swiftshader']});
+const errors=[],unfinished=[],results=[];
+const routes=[['/overview','Overview'],['/workspace','Flood Workspace'],['/analysis','Impact & Analysis'],['/reports','Reports'],['/about-data','Data & Methodology']];
+async function nav(page,name){await page.getByRole('navigation',{name:'Main navigation'}).getByRole('link',{name,exact:true}).click();}
+async function ready(page){await page.waitForFunction(()=>{const map=document.querySelector('.workspace-route:not([hidden]) .map-space');return map?.dataset.mapStatus==='ready'&&map.dataset.loadedStyle===map.dataset.themeStyle;},null,{timeout:60000});}
+async function shot(page,name){await page.screenshot({path:new URL(name,output).pathname.replace(/^\/([A-Z]:)/,'$1'),fullPage:true});}
+async function overflow(page){assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),'No horizontal document overflow');}
+try{
+ const context=await browser.newContext({viewport:{width:1440,height:900},colorScheme:'light'});const page=await context.newPage();
+ page.on('pageerror',error=>errors.push(error.message));page.on('request',request=>{if(/\/api\/v1\/(ai\/|data\/|provenance)/.test(request.url()))unfinished.push(request.url());});
+ await page.goto(base+'/overview');await page.getByRole('heading',{name:'Understand disruption.' ,exact:false}).waitFor();
+ await page.locator('.scenario-summary-grid dd').first().filter({hasText:'549'}).waitFor({timeout:45000});await overflow(page);
+ await nav(page,'Flood Workspace');await page.getByRole('button',{name:'Load rerouting demo'}).click();await page.getByRole('heading',{name:'Alternative route available'}).waitFor({timeout:45000});await ready(page);
+ const canvas=await page.locator('.workspace-route .maplibregl-canvas').getAttribute('data-scenario');assert.equal(canvas,'1');
+ for(const theme of ['light','dark']){
+  if(theme==='dark'){await page.getByRole('button',{name:'Switch to dark theme'}).click();await page.waitForFunction(()=>document.documentElement.dataset.theme==='dark');}
+  for(const [path,label]of routes){await nav(page,label);assert.equal(new URL(page.url()).pathname,path);await page.getByRole('navigation',{name:'Main navigation'}).getByRole('link',{name:label,exact:true}).getAttribute('aria-current').then(value=>assert.equal(value,'page'));if(path==='/workspace'){await page.waitForFunction(()=>document.querySelector('.workspace-route .maplibregl-canvas')?.dataset.closures==='1971');await ready(page);await page.locator('.workspace-route .side-panel').evaluateAll(nodes=>nodes.forEach(node=>node.scrollTop=0));}if(path==='/overview'){await page.waitForFunction(()=>document.querySelector('.overview-map .map-space')?.dataset.mapStatus==='ready',{},{timeout:60000});}if(path==='/analysis'){await page.locator('.analysis-screen .comparison-card').nth(2).waitFor({timeout:45000});assert.equal(await page.locator('.analysis-screen .comparison-card').count(),3);assert(await page.locator('.analysis-screen .closure-chart').isVisible());}if(path==='/reports'){assert(await page.getByRole('heading',{name:'AI Decision Brief'}).isVisible());assert(await page.locator('.report-paper').getByText('4.98 km',{exact:true}).isVisible());}await overflow(page);await shot(page,'desktop-'+theme+'-'+(path==='/'?'overview':path.slice(1))+'.png');}
+ }
+ await page.goBack();await overflow(page);await page.goForward();await overflow(page);await nav(page,'Reports');const downloaded=page.waitForEvent('download');await page.getByRole('button',{name:'Download Markdown'}).click();const file=await downloaded;assert.equal(file.suggestedFilename(),'atlas-computed-scenario-report.md');await file.saveAs(new URL('computed-report.md',output).pathname.replace(/^\/([A-Z]:)/,'$1'));
+ await nav(page,'Flood Workspace');await ready(page);assert.equal(await page.locator('.workspace-route .maplibregl-canvas').getAttribute('data-scenario'),'1');
+ await page.setViewportSize({width:1024,height:768});for(const[,label]of routes){await nav(page,label);await overflow(page);}await shot(page,'tablet-methodology.png');
+ results.push({check:'Desktop/tablet five routes, both themes, real comparison chart, report export, map/route state preserved',status:'PASSED'});
+ await context.close();
+ const mobileContext=await browser.newContext({viewport:{width:390,height:844},isMobile:true,hasTouch:true,colorScheme:'light'});const mobile=await mobileContext.newPage();mobile.on('pageerror',error=>errors.push(error.message));
+ await mobile.goto(base+'/workspace');await mobile.getByRole('button',{name:'Load rerouting demo'}).tap();await mobile.getByRole('heading',{name:'Alternative route available'}).waitFor({timeout:45000});await ready(mobile);
+ for(const theme of ['light','dark']){if(theme==='dark'){await mobile.getByRole('button',{name:'Switch to dark theme'}).tap();await mobile.waitForFunction(()=>document.documentElement.dataset.theme==='dark');}for(const[path,label]of routes){await nav(mobile,label);if(path==='/workspace'){await mobile.waitForFunction(()=>document.querySelector('.workspace-route .maplibregl-canvas')?.dataset.closures==='1971');await ready(mobile);}if(path==='/'){await mobile.waitForFunction(()=>document.querySelector('.overview-map .map-space')?.dataset.mapStatus==='ready',{},{timeout:60000});}if(path==='/analysis')await mobile.locator('.analysis-screen .comparison-card').nth(2).waitFor({timeout:45000});await overflow(mobile);await shot(mobile,'mobile-'+theme+'-'+(path==='/'?'overview':path.slice(1))+'.png');}}
+ await mobile.goto(base+'/reports');await mobile.getByText('No route findings are available.',{exact:false}).waitFor({timeout:45000});
+ results.push({check:'Mobile five routes in light/dark, no horizontal overflow, direct reports empty state',status:'PASSED'});await mobileContext.close();
+ const failed=await browser.newContext();const failure=await failed.newPage();await failure.route('**/api/v1/study-areas',route=>route.fulfill({status:503,contentType:'application/json',body:JSON.stringify({success:false,error:{code:'UNAVAILABLE',message:'Unavailable'},meta:{requestId:'qa'}})}));await failure.goto(base+'/overview');await failure.getByRole('heading',{name:'Analysis service unavailable'}).waitFor();await failure.unroute('**/api/v1/study-areas');await failure.getByRole('button',{name:'Retry connection'}).click();await failure.getByRole('heading',{name:'One dataset. Multiple conditions.'}).waitFor({timeout:45000});await failure.goto(base+'/unknown');await failure.getByRole('heading',{name:'Page not found'}).waitFor();await failed.close();
+ assert.deepEqual(errors,[]);assert.deepEqual(unfinished,[]);results.push({check:'API failure/retry, unknown route, zero unfinished AI/provenance requests, zero page errors',status:'PASSED'});
+ await writeFile(new URL('verification.json',output),JSON.stringify({status:'PASSED',base,results,errors,unfinishedRequests:unfinished},null,2));console.log(JSON.stringify({status:'PASSED',results,errors},null,2));
+}catch(error){console.error('Screens verification FAILED:',error.message);process.exitCode=1;}finally{await browser.close();}
