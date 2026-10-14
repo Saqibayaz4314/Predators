@@ -26,7 +26,7 @@ async function comparison(page, base, pair) {
 try {
   const desktop = await browser.newContext({ viewport: { width: 1440, height: 900 }, colorScheme: 'light' });
   const page = await desktop.newPage(); page.on('pageerror', (error) => errors.push(error.message));
-  await page.goto(liveBase); await ready(page);
+  await page.goto(liveBase + '/workspace'); await ready(page);
   await page.getByRole('heading', { name: 'No verified shelter data available' }).waitFor({ timeout: 45000 });
   await page.getByRole('button', { name: 'Compare scenarios A/B/C' }).click();
   await page.getByRole('heading', { name: 'Select an origin first' }).waitFor();
@@ -62,7 +62,7 @@ try {
 
   const mobileContext = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, colorScheme: 'light' });
   const mobile = await mobileContext.newPage(); mobile.on('pageerror', (error) => errors.push(error.message));
-  await mobile.goto(demoBase); await ready(mobile);
+  await mobile.goto(demoBase + '/workspace'); await ready(mobile);
   await mobile.getByText('Development fixtures only. These are not real shelters.').waitFor({ timeout: 45000 });
   await mobile.getByRole('button', { name: 'Load rerouting demo' }).tap();
   await mobile.getByRole('heading', { name: 'Alternative route available' }).waitFor({ timeout: 45000 });

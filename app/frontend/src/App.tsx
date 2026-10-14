@@ -15,10 +15,11 @@ const distance = (meters: number | null | undefined) => meters == null ? '—' :
 function ErrorNotice({ message, retry }: { message: string; retry: () => void }) {
   return <div className="error-notice" role="alert"><AlertTriangle size={16} /><div><p>{message}</p><button onClick={retry}><RotateCcw size={14} />Retry</button></div></div>;
 }
-export function App({ apiBaseUrl }: { apiBaseUrl: string }) {
+export function App({ apiBaseUrl, embedded = false, active = true }: { apiBaseUrl: string; embedded?: boolean; active?: boolean }) {
   const client = useQueryClient();
   const state = useWorkspace();
   const [comparisonOpen, setComparisonOpen] = useState(false);
+  useEffect(() => { if (!active) setComparisonOpen(false); }, [active]);
   const [selectedShelterId, setSelectedShelterId] = useState<string | null>(null);
   const [snapError, setSnapError] = useState('');
   const [snapping, setSnapping] = useState(false);
@@ -97,13 +98,13 @@ export function App({ apiBaseUrl }: { apiBaseUrl: string }) {
   }
   const routeBusy = state.requested && routes.isFetching;
   const pending = areas.isPending || Boolean(area && (roads.isPending || scenarios.isPending));
-  return <div className="app-shell">
-    <header className="topbar">
+  return <div className={embedded ? "app-shell workspace-embedded" : "app-shell"}>
+    {!embedded && <><header className="topbar">
       <a className="brand" href="/" aria-label="Flood Digital Twin home"><Layers size={29} strokeWidth={1.6} /><span>FLOOD<span className="wordmark">DIGITAL TWIN</span></span></a>
       <div className="workspace-title"><span className="eyebrow">ATLAS WORKSPACE</span><span>Sukkur / Rohri · Network accessibility</span></div>
       <div className="header-actions"><span className="phase-label">SIMULATION CONSOLE</span><ThemeToggle /></div>
     </header>
-    <div className="notice"><CircleHelp size={16} /><span>Simulation prototype. Hypothetical flood scenarios only. Not official evacuation guidance.</span></div>
+    <div className="notice"><CircleHelp size={16} /><span>Simulation prototype. Hypothetical flood scenarios only. Not official evacuation guidance.</span></div></>}
     <main className="workspace">
       <aside className="side-panel" aria-labelledby="scenario-heading">
         <div className="panel-title"><SlidersHorizontal size={18} /><h2 id="scenario-heading">Scenario Lab</h2><span className="index">01</span></div>
