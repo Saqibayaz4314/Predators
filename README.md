@@ -30,6 +30,7 @@ CL-01 · Climate Resilience & Disaster Management · Hackathon Submission
 
 ## Contents
 
+- [Repository Structure](#repository-structure)
 - [The Problem](#the-problem)
 - [Our Solution](#our-solution)
 - [Live Demo](#live-demo)
@@ -47,6 +48,37 @@ CL-01 · Climate Resilience & Disaster Management · Hackathon Submission
 - [Limitations & Responsible Use](#limitations--responsible-use)
 - [Future Roadmap](#future-roadmap)
 - [Team & Acknowledgments](#team--acknowledgments)
+
+---
+
+## Repository Structure
+
+```text
+Predators/
+├── app/
+│   ├── frontend/            # React 19 + Vite + MapLibre GL workspace (ATLAS)
+│   │   ├── src/             # screens, map layers, API client, theme, stores
+│   │   ├── scripts/         # Playwright browser verification + screenshots
+│   │   └── dist/            # production bundle (nginx-served in EKS)
+│   └── backend/             # Fastify 5 modular monolith
+│       ├── src/
+│       │   ├── modules/     # study areas, scenarios, spatial analysis, routing, shelters, AI
+│       │   ├── routes/      # /api/v1 route handlers (Zod-validated envelopes)
+│       │   ├── routing/     # TypeScript Dijkstra + binary min-heap + graph cache
+│       │   ├── db/          # pg pool (TLS), Drizzle schema, spatial queries
+│       │   └── services/    # AI provider adapter, deterministic fallback
+│       ├── migrations/      # 001_initial_schema.sql (PostGIS schema)
+│       ├── scripts/         # import, validate, seed, inspect, verify-demo
+│       └── tests/           # 169 vitest tests (live PostGIS integration)
+├── packages/
+│   └── shared/              # @flood/shared — Zod schemas + types shared across the API boundary
+├── dataset/                 # processed road graph + flood seed + OSM extract (untracked large files)
+├── docs/                    # 16 project documents (problem → deployment → task tracker)
+├── terraform/               # IaC — VPC, ECR, EKS modules (state in S3)
+├── k8s/                     # namespace, deployments, services, HPA, PDB, configmap, secrets
+├── .github/workflows/       # deploy.yaml (TF → build → ECR → kubectl → smoke test)
+└── .ai/                     # agent state: current state, handoff, decisions, known issues
+```
 
 ---
 
@@ -160,11 +192,12 @@ Computed for demonstration node pair: **origin node 529 → destination node 806
 
 | Suite | Tests |
 |---|---|
-| Backend (graph, routing, flood, DB, accessibility, AI) | **136 / 136** |
-| Frontend (API, map layers, accessibility, theme) | **38 / 38** |
+| Backend (graph, routing, flood, DB, accessibility, AI, API protection, summaries) | **169 / 169** |
+| Frontend (API, map layers, accessibility, theme, AI brief, data provenance) | **67 / 67** |
 | Browser E2E (Playwright, desktop + mobile, Light/Dark) | Passed |
 | TypeScript typecheck (all packages) | Passed |
 | Production build (frontend + backend) | Passed |
+| End-to-end demo verifier (real graph, reroute + unreachable fixtures) | Passed |
 
 ---
 
@@ -204,6 +237,10 @@ The shelter accessibility subsystem snaps candidate locations to the nearest roa
 
 PostGIS independently checks whether each candidate location falls within a simulated flood polygon. This flood flag is displayed separately and does not override network reachability.
 
+### Data Provenance (About Data)
+
+The About Data screen (`GET /api/v1/data/provenance` + `GET /study-areas/:id/summary`) presents the dataset's full provenance chain — source (OpenStreetMap extract, Sukkur/Rohri bounds), dataset version (`sukkur-osm-2026-10-v1`), license (ODbL), import date, and live table-level statistics (nodes, arcs, physical segments, scenarios) — together with the study-area summary counts. Every value is read from the live database; nothing is hardcoded in the UI.
+
 ### AI Scenario Explanation (implemented, optional)
 
 A `POST /api/v1/ai/explain` endpoint generates natural-language situational summaries of verified deterministic results using a DigitalOcean-hosted inference endpoint:
@@ -213,6 +250,7 @@ A `POST /api/v1/ai/explain` endpoint generates natural-language situational summ
 - **Strict Grounding:** The prompt builder embeds authoritative metrics directly from PostGIS (`computeScenarioImpact`), Dijkstra (`compareScenarioRoute`), and the shelter engine (`evaluateShelters`). The AI model is strictly prohibited from estimating distances, guessing closure counts, or inventing routes.
 - **Output Validation:** All model outputs pass through a Zod schema validator (`output-validator.ts`) that enforces structured JSON (`summary`, `observations`, `confidence`, `limitations`), verifies script integrity (English / Roman Urdu), and guarantees simulation caveats are preserved.
 - **Deterministic Fallback:** If `DO_GPT_OSS_API_KEY` is omitted, the inference endpoint times out (12 s), or the upstream returns malformed JSON, the backend automatically serves an instant deterministic fallback explanation (`deterministic-fallback.ts`) without disrupting the application or frontend UI.
+- **AI Decision Brief (Reports):** the frontend `AiBrief` panel exposes this endpoint behind a single explicit "Generate explanation" action (no automatic paid calls, no retries on failure). The response source — DigitalOcean inference or deterministic fallback — is labelled transparently in the panel.
 
 ### Light / Dark Theme
 
@@ -311,6 +349,7 @@ flowchart TB
 | nginx as API proxy | Single public port; no Ingress controller required with the NLB approach |
 | External Heroku DB | Heroku-managed PostgreSQL + PostGIS avoids running a stateful set inside EKS |
 | DigitalOcean Hosted Inference | Offloads 120B open-weights model inference to managed cloud GPU endpoints; keeps Node.js backend lightweight |
+| Dedicated self-hosted PostgreSQL | PostGIS + full schema ownership on a dedicated Heroku RDS instance — no external database service coupling in the application code |
 | Deterministic fallback guard | Decouples application uptime from LLM availability; routing & analysis work 100% offline or without API keys |
 
 ### AI Explanation Architecture & DigitalOcean Inference Pipeline
@@ -458,7 +497,7 @@ A development-only demo mode (`SHELTER_DEMO=true`, refused in production) provid
 | Kubernetes | Namespace, deployments, services, HPA, PDB, ConfigMap |
 | Docker | Frontend nginx + backend Node.js containers |
 | GitHub Actions | CI/CD — build, push, deploy, smoke test |
-| Heroku PostgreSQL | Externally managed PostGIS instance (RDS-backed) |
+| PostgreSQL (self-hosted) | Dedicated project database — PostgreSQL 18.4 + PostGIS 3.6 on a Heroku RDS-backed instance; schema, imports and indexes fully project-managed, no external DBaaS abstraction layer |
 
 ### AI & Natural Language Explanation (optional)
 
@@ -662,17 +701,20 @@ npx --yes pnpm@10.30.1 -- pnpm --filter @flood/backend run geo:seed
 | `app/backend/tests/accessibility.test.ts` | Shelter reachability, comparison | 16 |
 | `app/backend/tests/ai.test.ts` | AI provider, Zod validator, prompt builder, fallback | 19 |
 | `app/backend/tests/ai.integration.test.ts` | AI endpoint integration & provenance | 4 |
-| `app/frontend/src/*.test.ts` | API client, map layers, theme, workspace | 38 |
+| `app/backend/tests/api-protection.test.ts` | Domain error codes, rate limiting (429) | 7 |
+| `app/backend/tests/studyAreaSummary.test.ts` | API-013 study-area overview counts | 3 |
+| `app/frontend/src/*.test.ts` | API client, error mapping, map layers, theme, workspace, AI brief, data provenance | 67 |
 | Browser E2E | Playwright — desktop + mobile, Light/Dark | Passed |
 
 ### Verified test results
 
 ```
-Backend:  136/136 tests PASSED
-Frontend:  38/38  tests PASSED
+Backend:  169/169 tests PASSED
+Frontend:  67/67  tests PASSED
 TypeScript typecheck (all packages): PASSED
 Production build (frontend + backend): PASSED
 Browser E2E (Playwright): PASSED — zero page errors
+End-to-end demo verifier (read-only, live DB): PASSED
 ```
 
 ### Key routing invariants verified by tests
