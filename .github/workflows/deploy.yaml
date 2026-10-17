@@ -1,5 +1,6 @@
 name: Deploy Flood Digital Twin
 
+# Trigger automated AWS EKS deployment pipeline
 on:
   push:
     branches:
