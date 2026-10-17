@@ -74,3 +74,5 @@ Thumbs.db
 *.tfplan
 playwright-report/
 test-results/
+app/frontend/artifacts/landing/
+app/frontend/artifacts/screens/
